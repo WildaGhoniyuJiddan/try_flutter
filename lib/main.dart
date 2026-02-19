@@ -1,120 +1,52 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_kasir/bahan_baku.dart';
 
 void main() {
-  runApp(const KasirApp());
+  runApp(MyTelur());
 }
 
-class KasirApp extends StatelessWidget {
-  const KasirApp({super.key});
-
+class MyTelur extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'Kasir Sederhana',
+      title: 'Telur Asin App',
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
-      home: const KasirPage(),
+      //home: HomePage(),
+      home: BahanBaku(),
     );
   }
 }
 
-class KasirPage extends StatefulWidget {
-  const KasirPage({super.key});
-
-  @override
-  State<KasirPage> createState() => _KasirPageState();
-}
-
-class _KasirPageState extends State<KasirPage> {
-  final TextEditingController namaController = TextEditingController();
-  final TextEditingController hargaController = TextEditingController();
-
-  final List<Map<String, dynamic>> items = [];
-
-  int total = 0;
-
-  void tambahItem() {
-    final String nama = namaController.text;
-    final int harga = int.tryParse(hargaController.text) ?? 0;
-
-    if (nama.isEmpty || harga <= 0) return;
-
-    setState(() {
-      items.add({
-        'nama': nama,
-        'harga': harga,
-      });
-      total += harga;
-    });
-
-    namaController.clear();
-    hargaController.clear();
-  }
+class HomePage extends StatelessWidget {
+  final List<Map<String, dynamic>> menu = [
+    {"title": "Bahan Baku", "icon": Icons.inventory},
+    {"title": "Produksi", "icon": Icons.factory},
+    {"title": "Stok", "icon": Icons.storage},
+    {"title": "Penjualan", "icon": Icons.point_of_sale},
+  ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Kasir Sederhana'),
-        centerTitle: true,
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            TextField(
-              controller: namaController,
-              decoration: const InputDecoration(
-                labelText: 'Nama Barang',
-                border: OutlineInputBorder(),
-              ),
+      appBar: AppBar(title: Text("Sistem Telur Asin")),
+      body: ListView.builder(
+        itemCount: menu.length,
+        itemBuilder: (context, index) {
+          return Card(
+            child: ListTile(
+              leading: Icon(menu[index]["icon"]),
+              title: Text(menu[index]["title"]),
+              trailing: Icon(Icons.arrow_forward),
+              onTap: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text("Menu belum dibuat")),
+                );
+              },
             ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: hargaController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'Harga',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 10),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: tambahItem,
-                child: const Text('Tambah'),
-              ),
-            ),
-            const SizedBox(height: 20),
-            Expanded(
-              child: ListView.builder(
-                itemCount: items.length,
-                itemBuilder: (context, index) {
-                  return Card(
-                    child: ListTile(
-                      title: Text(items[index]['nama']),
-                      trailing: Text(
-                        'Rp ${items[index]['harga']}',
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-            const Divider(),
-            Text(
-              'Total: Rp $total',
-              style: const TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
