@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_kasir/bahan_baku.dart';
+import 'homepage.dart';
 
 void main() {
   runApp(MyTelur());
@@ -13,8 +14,8 @@ class MyTelur extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
-      //home: HomePage(),
-      home: BahanBaku(),
+      home: HomePage(),
+      //home: BahanBaku(),
     );
   }
 }
@@ -40,9 +41,18 @@ class HomePage extends StatelessWidget {
               title: Text(menu[index]["title"]),
               trailing: Icon(Icons.arrow_forward),
               onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text("Menu belum dibuat")),
-                );
+                if (menu[index]["title"] == "Bahan Baku") {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => BahanBaku(),
+                    ),
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text("Menu belum dibuat")),
+                  );
+                }
               },
             ),
           );
