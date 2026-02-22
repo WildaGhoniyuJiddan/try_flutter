@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'bahan_baku.dart';
+import 'produksi.dart';
 
 class HomePage extends StatelessWidget {
   @override
@@ -26,7 +27,12 @@ class HomePage extends StatelessWidget {
             title: Text("Produksi"),
             leading: Icon(Icons.factory),
             onTap: () {
-              // nanti
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ProduksiPage(),
+                ),
+              );
             },
           ),
 

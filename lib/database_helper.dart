@@ -25,14 +25,38 @@ class DatabaseHelper {
   }
 
   Future _createDB(Database db, int version) async {
-    await db.execute('''
-      CREATE TABLE bahan_baku (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        jumlah INTEGER,
-        kualitas TEXT
-      )
-    ''');
-  }
+  // 1. tabel bahan_baku
+  await db.execute('''
+    CREATE TABLE bahan_baku (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      jumlah INTEGER,
+      kualitas TEXT
+    )
+  ''');
+
+  // 2. tabel user
+  await db.execute('''
+    CREATE TABLE user (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT,
+      password TEXT
+    )
+  ''');
+
+  await db.insert('user', {
+    'username': 'admin',
+    'password': 'admin123',
+  });
+
+  await db.execute('''
+    CREATE TABLE produksi (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tgl_produksi TEXT,
+    jumlah_hasil INTEGER,
+    status TEXT
+  )
+''');
+}
 
   Future<int> insertBahanBaku(int jumlah, String kualitas) async {
     final db = await instance.database;
@@ -49,5 +73,16 @@ class DatabaseHelper {
   Future<List<Map<String, dynamic>>> getBahanBaku() async {
     final db = await instance.database;
     return await db.query('bahan_baku');
+  }
+  Future<bool> login(String username, String password) async {
+    final db = await instance.database;
+
+    final result = await db.query(
+      'user',
+      where: 'username = ? AND password = ?',
+      whereArgs: [username, password],
+    );
+
+    return result.isNotEmpty;
   }
 }
