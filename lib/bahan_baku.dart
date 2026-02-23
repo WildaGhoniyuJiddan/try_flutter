@@ -10,11 +10,15 @@ class _BahanBakuState extends State<BahanBaku> {
 
   final TextEditingController jumlahController = TextEditingController();
   
-  // 1. Variabel baru khusus untuk menampung pilihan Dropdown
   String? kualitasTerpilih;
   final List<String> listKualitas = ['Grade AA', 'Grade A', 'Grade B'];
 
   List<Map<String, dynamic>> dataList = [];
+
+  // Variabel baru untuk menampung total per grade
+  int totalAA = 0;
+  int totalA = 0;
+  int totalB = 0;
 
   @override
   void initState() {
@@ -31,7 +35,6 @@ class _BahanBakuState extends State<BahanBaku> {
   Future<void> simpanData() async {
     String jumlahText = jumlahController.text;
 
-    // VALIDASI DULU (Sedikit diubah biar ngecek dropdown juga)
     if (jumlahText.isEmpty || kualitasTerpilih == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Semua field harus diisi")),
@@ -42,10 +45,9 @@ class _BahanBakuState extends State<BahanBaku> {
     int jumlah = int.parse(jumlahText);
 
     await DatabaseHelper.instance.insertBahanBaku(jumlah, kualitasTerpilih!);
-    await loadData();
+    await loadData(); // Ini akan otomatis memperbarui Card dan List
 
     jumlahController.clear();
-    // 2. Kosongkan dropdown setelah simpan ditekan
     setState(() {
       kualitasTerpilih = null;
     });
@@ -58,8 +60,31 @@ class _BahanBakuState extends State<BahanBaku> {
   Future<void> loadData() async {
     final data = await DatabaseHelper.instance.getBahanBaku();
 
+    // Reset nilai hitungan sementara
+    int tempAA = 0;
+    int tempA = 0;
+    int tempB = 0;
+
+    // Menghitung total masing-masing grade dari data database
+    for (var item in data) {
+      int jml = item['jumlah'] as int;
+      String kualitas = item['kualitas'] as String;
+
+      if (kualitas == 'Grade AA') {
+        tempAA += jml;
+      } else if (kualitas == 'Grade A') {
+        tempA += jml;
+      } else if (kualitas == 'Grade B') {
+        tempB += jml;
+      }
+    }
+
     setState(() {
       dataList = data;
+      // Masukkan hasil hitungan ke variabel utama agar tampil di layar
+      totalAA = tempAA;
+      totalA = tempA;
+      totalB = tempB;
     });
   }
 
@@ -71,6 +96,28 @@ class _BahanBakuState extends State<BahanBaku> {
         padding: EdgeInsets.all(16),
         child: Column(
           children: [
+            
+            // --- CARD BARU UNTUK TOTAL GRADE ---
+            Card(
+              color: Colors.orange.shade50,
+              elevation: 3,
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _buildGradeInfo("Grade AA", totalAA),
+                    Container(height: 40, width: 1, color: Colors.grey), // Garis pemisah
+                    _buildGradeInfo("Grade A", totalA),
+                    Container(height: 40, width: 1, color: Colors.grey), // Garis pemisah
+                    _buildGradeInfo("Grade B", totalB),
+                  ],
+                ),
+              ),
+            ),
+            
+            SizedBox(height: 20),
+            // ------------------------------------
 
             TextField(
               controller: jumlahController,
@@ -83,7 +130,6 @@ class _BahanBakuState extends State<BahanBaku> {
 
             SizedBox(height: 16),
 
-            // 3. BAGIAN INI SAJA YANG BERUBAH JADI DROPDOWN
             DropdownButtonFormField<String>(
               value: kualitasTerpilih,
               decoration: InputDecoration(
@@ -117,6 +163,7 @@ class _BahanBakuState extends State<BahanBaku> {
                 itemCount: dataList.length,
                 itemBuilder: (context, index) {
                   return ListTile(
+                    leading: Icon(Icons.egg, color: Colors.brown),
                     title: Text("Jumlah: ${dataList[index]['jumlah']}"),
                     subtitle: Text("Kualitas: ${dataList[index]['kualitas']}"),
                   );
@@ -126,6 +173,17 @@ class _BahanBakuState extends State<BahanBaku> {
           ],
         ),
       ),
+    );
+  }
+
+  // Fungsi tambahan (Widget Helper) agar kode Card di atas lebih rapi
+  Widget _buildGradeInfo(String gradeName, int total) {
+    return Column(
+      children: [
+        Text(gradeName, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+        SizedBox(height: 8),
+        Text("$total", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24, color: Colors.deepOrange)),
+      ],
     );
   }
 }
