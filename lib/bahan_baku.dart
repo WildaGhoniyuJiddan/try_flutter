@@ -9,7 +9,10 @@ class BahanBaku extends StatefulWidget {
 class _BahanBakuState extends State<BahanBaku> {
 
   final TextEditingController jumlahController = TextEditingController();
-  final TextEditingController kualitasController = TextEditingController();
+  
+  // 1. Variabel baru khusus untuk menampung pilihan Dropdown
+  String? kualitasTerpilih;
+  final List<String> listKualitas = ['Grade AA', 'Grade A', 'Grade B'];
 
   List<Map<String, dynamic>> dataList = [];
 
@@ -22,16 +25,14 @@ class _BahanBakuState extends State<BahanBaku> {
   @override
   void dispose() {
     jumlahController.dispose();
-    kualitasController.dispose();
     super.dispose();
   }
 
   Future<void> simpanData() async {
     String jumlahText = jumlahController.text;
-    String kualitas = kualitasController.text;
 
-    // VALIDASI DULU
-    if (jumlahText.isEmpty || kualitas.isEmpty) {
+    // VALIDASI DULU (Sedikit diubah biar ngecek dropdown juga)
+    if (jumlahText.isEmpty || kualitasTerpilih == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Semua field harus diisi")),
       );
@@ -40,11 +41,14 @@ class _BahanBakuState extends State<BahanBaku> {
 
     int jumlah = int.parse(jumlahText);
 
-    await DatabaseHelper.instance.insertBahanBaku(jumlah, kualitas);
+    await DatabaseHelper.instance.insertBahanBaku(jumlah, kualitasTerpilih!);
     await loadData();
 
     jumlahController.clear();
-    kualitasController.clear();
+    // 2. Kosongkan dropdown setelah simpan ditekan
+    setState(() {
+      kualitasTerpilih = null;
+    });
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text("Data berhasil disimpan")),
@@ -79,12 +83,24 @@ class _BahanBakuState extends State<BahanBaku> {
 
             SizedBox(height: 16),
 
-            TextField(
-              controller: kualitasController,
+            // 3. BAGIAN INI SAJA YANG BERUBAH JADI DROPDOWN
+            DropdownButtonFormField<String>(
+              value: kualitasTerpilih,
               decoration: InputDecoration(
                 labelText: "Kualitas",
                 border: OutlineInputBorder(),
               ),
+              items: listKualitas.map((String val) {
+                return DropdownMenuItem<String>(
+                  value: val,
+                  child: Text(val),
+                );
+              }).toList(),
+              onChanged: (newValue) {
+                setState(() {
+                  kualitasTerpilih = newValue;
+                });
+              },
             ),
 
             SizedBox(height: 20),

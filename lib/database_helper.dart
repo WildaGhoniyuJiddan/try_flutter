@@ -85,4 +85,26 @@ class DatabaseHelper {
 
     return result.isNotEmpty;
   }
+
+  // Fungsi untuk memasukkan data ke tabel produksi
+  Future<int> insertProduksi(int jumlah, String tgl) async {
+    final db = await instance.database;
+    return await db.insert('produksi', {
+      'jumlah_hasil': jumlah,
+      'tgl_produksi': tgl,
+      'status': 'Selesai'
+    });
+  }
+
+  // Fungsi untuk menjumlahkan semua telur yang pernah diproduksi
+  Future<int> getTotalProduksi() async {
+    final db = await instance.database;
+    // Menggunakan query SUM bawaan SQLite agar otomatis dijumlahkan
+    final result = await db.rawQuery('SELECT SUM(jumlah_hasil) as total FROM produksi');
+    
+    if (result.isNotEmpty && result.first['total'] != null) {
+      return result.first['total'] as int;
+    }
+    return 0; // Kembalikan 0 jika tabel masih kosong
+  }
 }
