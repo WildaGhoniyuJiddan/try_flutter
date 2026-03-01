@@ -88,6 +88,7 @@ class _ProduksiPageState extends State<ProduksiPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         title: Text("Dashboard Produsen"),
         actions: [
           IconButton(
@@ -102,7 +103,6 @@ class _ProduksiPageState extends State<ProduksiPage> {
         child: Column(
           children: [
             
-            // --- CARD INFO STOK (SEKARANG JADI 3 KOLOM) ---
             Row(
               children: [
                 // Kotak 1: Sisa Bahan Baku (Orange)
