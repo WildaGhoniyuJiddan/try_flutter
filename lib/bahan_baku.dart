@@ -58,27 +58,36 @@ class _BahanBakuState extends State<BahanBaku> {
     );
   }
 
-  Future<void> loadData() async {
+Future<void> loadData() async {
+    // 1. Ambil data histori penerimaan telur
     final data = await DatabaseHelper.instance.getBahanBaku();
 
-    int tempBagus = 0;
+    int totalMasukBagus = 0;
     int tempRusak = 0;
 
-    // Menghitung total telur yang bagus dan rusak dari database
+    // 2. Hitung total telur kotor yang masuk
     for (var item in data) {
       int jml = item['jumlah'] as int;
       String kualitas = item['kualitas'] as String;
 
       if (kualitas == 'Lolos QC (Bagus)') {
-        tempBagus += jml;
+        totalMasukBagus += jml;
       } else if (kualitas == 'Tidak Lolos (Rusak)') {
         tempRusak += jml;
       }
     }
 
+    // 3. Ambil data telur yang SUDAH DIPAKAI oleh Produsen (Sprint 3)
+    int dipakaiBerhasil = await DatabaseHelper.instance.getTotalProduksiBerhasil();
+    int dipakaiGagal = await DatabaseHelper.instance.getTotalProduksiGagal();
+    int totalDipakai = dipakaiBerhasil + dipakaiGagal;
+
+    // 4. Hitung SISA REAL-TIME
+    int sisaBagus = totalMasukBagus - totalDipakai;
+
     setState(() {
       dataList = data;
-      totalBagus = tempBagus;
+      totalBagus = sisaBagus; // Tampilkan SISA telur bagus di layar
       totalRusak = tempRusak;
     });
   }
