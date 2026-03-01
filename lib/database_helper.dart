@@ -13,50 +13,75 @@ class DatabaseHelper {
     return _database!;
   }
 
+  // membuat database
   Future<Database> _initDB(String filePath) async {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, filePath);
 
     return await openDatabase(
       path,
-      version: 1,
+      version: 1, // Catatan: Jika kamu sudah pernah run app-nya di emulator sebelumnya, hapus/uninstall dulu app-nya dari emulator agar tabel baru ini ter-create ulang.
       onCreate: _createDB,
     );
   }
 
   Future _createDB(Database db, int version) async {
-  // 1. tabel bahan_baku
-  await db.execute('''
-    CREATE TABLE bahan_baku (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      jumlah INTEGER,
-      kualitas TEXT
-    )
-  ''');
+    // tabel bahan_baku
+    await db.execute('''
+      CREATE TABLE bahan_baku (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        jumlah INTEGER,
+        kualitas TEXT
+      )
+    ''');
 
-  // 2. tabel user
-  await db.execute('''
-    CREATE TABLE user (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      username TEXT,
-      password TEXT
-    )
-  ''');
+    // tabel user (UPDATE: username -> email, tambah kolom nama & role)
+    await db.execute('''
+      CREATE TABLE user (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nama TEXT,
+        email TEXT,
+        password TEXT,
+        role TEXT
+      )
+    ''');
 
-  await db.insert('user', {
-    'username': 'admin',
-    'password': 'admin123',
-  });
+    // Memasukkan (seeding) data user awal untuk berbagai Role agar mudah dites
+    await db.insert('user', {
+      'nama': 'Budi Manajer',
+      'email': 'manajer@admin.com',
+      'password': 'inventory123',
+      'role': 'Manajer Inventory'
+    });
+    await db.insert('user', {
+      'nama': 'Siti Produsen',
+      'email': 'produsen@admin.com',
+      'password': 'produsen123',
+      'role': 'Produsen'
+    });
+    await db.insert('user', {
+      'nama': 'Bos Telur',
+      'email': 'owner@admin.com',
+      'password': 'owner123',
+      'role': 'Owner'
+    });
+    await db.insert('user', {
+      'nama': 'Kasir Depan',
+      'email': 'kasir@admin.com',
+      'password': 'kasir123',
+      'role': 'Staf Offline'
+    });
 
-  await db.execute('''
-    CREATE TABLE produksi (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    tgl_produksi TEXT,
-    jumlah_hasil INTEGER,
-    status TEXT
-  )
-''');
-}
+    // tabel produksi
+    await db.execute('''
+      CREATE TABLE produksi (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tgl_produksi TEXT,
+        jumlah_hasil INTEGER,
+        status TEXT
+      )
+    ''');
+  }
 
   Future<int> insertBahanBaku(int jumlah, String kualitas) async {
     final db = await instance.database;
@@ -74,37 +99,89 @@ class DatabaseHelper {
     final db = await instance.database;
     return await db.query('bahan_baku');
   }
-  Future<bool> login(String username, String password) async {
+
+  // UPDATE: Fungsi login sekarang menggunakan email dan mereturn 'role' (String)
+  Future<String?> login(String email, String password) async {
     final db = await instance.database;
 
     final result = await db.query(
       'user',
-      where: 'username = ? AND password = ?',
-      whereArgs: [username, password],
+      columns: ['role'], // Kita hanya butuh mengambil role-nya saja
+      where: 'email = ? AND password = ?',
+      whereArgs: [email, password],
     );
 
-    return result.isNotEmpty;
+    // Jika data ditemukan, kembalikan nilai role (misal: 'Manajer Inventory')
+    if (result.isNotEmpty) {
+      return result.first['role'] as String;
+    }
+    
+    // Jika email/password salah, kembalikan null
+    return null;
   }
 
-  // Fungsi untuk memasukkan data ke tabel produksi
-  Future<int> insertProduksi(int jumlah, String tgl) async {
+  // 1. Fungsi insert produksi 
+  Future<int> insertProduksi(int jumlah, String tgl, String status) async {
     final db = await instance.database;
     return await db.insert('produksi', {
       'jumlah_hasil': jumlah,
       'tgl_produksi': tgl,
-      'status': 'Selesai'
+      'status': status // 'Berhasil' atau 'Gagal'
     });
   }
 
-  // Fungsi untuk menjumlahkan semua telur yang pernah diproduksi
-  Future<int> getTotalProduksi() async {
+  // 2. Hitung berhasil
+  Future<int> getTotalProduksiBerhasil() async {
     final db = await instance.database;
-    // Menggunakan query SUM bawaan SQLite agar otomatis dijumlahkan
-    final result = await db.rawQuery('SELECT SUM(jumlah_hasil) as total FROM produksi');
-    
+    final result = await db.rawQuery("SELECT SUM(jumlah_hasil) as total FROM produksi WHERE status = 'Berhasil'");
     if (result.isNotEmpty && result.first['total'] != null) {
       return result.first['total'] as int;
     }
-    return 0; // Kembalikan 0 jika tabel masih kosong
+    return 0;
+  }
+
+  // 3. Hitung gagal
+  Future<int> getTotalProduksiGagal() async {
+    final db = await instance.database;
+    final result = await db.rawQuery("SELECT SUM(jumlah_hasil) as total FROM produksi WHERE status = 'Gagal'");
+    if (result.isNotEmpty && result.first['total'] != null) {
+      return result.first['total'] as int;
+    }
+    return 0;
+  }
+
+  // 4. Berapa yang siap pakai
+  Future<int> getTotalBahanBakuLolosQC() async {
+    final db = await instance.database;
+    final result = await db.rawQuery("SELECT SUM(jumlah) as total FROM bahan_baku WHERE kualitas = 'Lolos QC (Bagus)'");
+    if (result.isNotEmpty && result.first['total'] != null) {
+      return result.first['total'] as int;
+    }
+    return 0;
+  }
+
+  // 1. CREATE: Tambah user baru
+  Future<int> insertUser(Map<String, dynamic> row) async {
+    final db = await instance.database;
+    return await db.insert('user', row);
+  }
+
+  // 2. READ: Ambil semua data user
+  Future<List<Map<String, dynamic>>> getUsers() async {
+    final db = await instance.database;
+    return await db.query('user');
+  }
+
+  // 3. UPDATE: Edit data user
+  Future<int> updateUser(Map<String, dynamic> row) async {
+    final db = await instance.database;
+    int id = row['id'];
+    return await db.update('user', row, where: 'id = ?', whereArgs: [id]);
+  }
+
+  // 4. DELETE: Hapus user
+  Future<int> deleteUser(int id) async {
+    final db = await instance.database;
+    return await db.delete('user', where: 'id = ?', whereArgs: [id]);
   }
 }

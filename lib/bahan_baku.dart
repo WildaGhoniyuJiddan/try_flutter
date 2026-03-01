@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'database_helper.dart';
+import 'login.dart'; // Pastikan meng-import login.dart untuk fitur logout
 
 class BahanBaku extends StatefulWidget {
   @override
@@ -7,18 +8,17 @@ class BahanBaku extends StatefulWidget {
 }
 
 class _BahanBakuState extends State<BahanBaku> {
-
   final TextEditingController jumlahController = TextEditingController();
   
-  String? kualitasTerpilih;
-  final List<String> listKualitas = ['Grade AA', 'Grade A', 'Grade B'];
+  String? kondisiTerpilih;
+  // UPDATE: Disesuaikan dengan FR-006 (Quality Control)
+  final List<String> listKondisi = ['Lolos QC (Bagus)', 'Tidak Lolos (Rusak)'];
 
   List<Map<String, dynamic>> dataList = [];
 
-  // Variabel baru untuk menampung total per grade
-  int totalAA = 0;
-  int totalA = 0;
-  int totalB = 0;
+  // Variabel penampung total telur mentah
+  int totalBagus = 0;
+  int totalRusak = 0;
 
   @override
   void initState() {
@@ -35,7 +35,7 @@ class _BahanBakuState extends State<BahanBaku> {
   Future<void> simpanData() async {
     String jumlahText = jumlahController.text;
 
-    if (jumlahText.isEmpty || kualitasTerpilih == null) {
+    if (jumlahText.isEmpty || kondisiTerpilih == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Semua field harus diisi")),
       );
@@ -44,60 +44,71 @@ class _BahanBakuState extends State<BahanBaku> {
 
     int jumlah = int.parse(jumlahText);
 
-    await DatabaseHelper.instance.insertBahanBaku(jumlah, kualitasTerpilih!);
-    await loadData(); // Ini akan otomatis memperbarui Card dan List
+    // Menyimpan data ke SQLite
+    await DatabaseHelper.instance.insertBahanBaku(jumlah, kondisiTerpilih!);
+    await loadData(); // Memperbarui daftar dan total card otomatis
 
     jumlahController.clear();
     setState(() {
-      kualitasTerpilih = null;
+      kondisiTerpilih = null;
     });
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("Data berhasil disimpan")),
+      SnackBar(content: Text("Data penerimaan bahan baku berhasil disimpan")),
     );
   }
 
   Future<void> loadData() async {
     final data = await DatabaseHelper.instance.getBahanBaku();
 
-    // Reset nilai hitungan sementara
-    int tempAA = 0;
-    int tempA = 0;
-    int tempB = 0;
+    int tempBagus = 0;
+    int tempRusak = 0;
 
-    // Menghitung total masing-masing grade dari data database
+    // Menghitung total telur yang bagus dan rusak dari database
     for (var item in data) {
       int jml = item['jumlah'] as int;
       String kualitas = item['kualitas'] as String;
 
-      if (kualitas == 'Grade AA') {
-        tempAA += jml;
-      } else if (kualitas == 'Grade A') {
-        tempA += jml;
-      } else if (kualitas == 'Grade B') {
-        tempB += jml;
+      if (kualitas == 'Lolos QC (Bagus)') {
+        tempBagus += jml;
+      } else if (kualitas == 'Tidak Lolos (Rusak)') {
+        tempRusak += jml;
       }
     }
 
     setState(() {
       dataList = data;
-      // Masukkan hasil hitungan ke variabel utama agar tampil di layar
-      totalAA = tempAA;
-      totalA = tempA;
-      totalB = tempB;
+      totalBagus = tempBagus;
+      totalRusak = tempRusak;
     });
+  }
+
+  // Fungsi Logout
+  void _logout() {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => LoginPage()),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("Input Bahan Baku")),
+      appBar: AppBar(
+        title: Text("Dashboard Inventory"),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.logout),
+            onPressed: _logout, // Tombol kembali ke halaman login
+            tooltip: "Logout",
+          )
+        ],
+      ),
       body: Padding(
         padding: EdgeInsets.all(16),
         child: Column(
           children: [
-            
-            // --- CARD BARU UNTUK TOTAL GRADE ---
+            // --- CARD TOTAL STOK BAHAN BAKU ---
             Card(
               color: Colors.orange.shade50,
               elevation: 3,
@@ -106,19 +117,20 @@ class _BahanBakuState extends State<BahanBaku> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
-                    _buildGradeInfo("Grade AA", totalAA),
-                    Container(height: 40, width: 1, color: Colors.grey), // Garis pemisah
-                    _buildGradeInfo("Grade A", totalA),
-                    Container(height: 40, width: 1, color: Colors.grey), // Garis pemisah
-                    _buildGradeInfo("Grade B", totalB),
+                    _buildGradeInfo("Telur Bagus", totalBagus, Colors.green),
+                    Container(height: 40, width: 1, color: Colors.grey), 
+                    _buildGradeInfo("Telur Rusak", totalRusak, Colors.red),
+                    Container(height: 40, width: 1, color: Colors.grey),
+                    // Menampilkan total keseluruhan bahan baku yang diterima
+                    _buildGradeInfo("Total Diterima", totalBagus + totalRusak, Colors.blue[800]!),
                   ],
                 ),
               ),
             ),
             
             SizedBox(height: 20),
-            // ------------------------------------
 
+            // --- FORM INPUT PENERIMAAN & QC ---
             TextField(
               controller: jumlahController,
               keyboardType: TextInputType.number,
@@ -131,12 +143,12 @@ class _BahanBakuState extends State<BahanBaku> {
             SizedBox(height: 16),
 
             DropdownButtonFormField<String>(
-              value: kualitasTerpilih,
+              value: kondisiTerpilih,
               decoration: InputDecoration(
-                labelText: "Kualitas",
+                labelText: "Kondisi / Quality Control",
                 border: OutlineInputBorder(),
               ),
-              items: listKualitas.map((String val) {
+              items: listKondisi.map((String val) {
                 return DropdownMenuItem<String>(
                   value: val,
                   child: Text(val),
@@ -144,7 +156,7 @@ class _BahanBakuState extends State<BahanBaku> {
               }).toList(),
               onChanged: (newValue) {
                 setState(() {
-                  kualitasTerpilih = newValue;
+                  kondisiTerpilih = newValue;
                 });
               },
             ),
@@ -153,19 +165,41 @@ class _BahanBakuState extends State<BahanBaku> {
 
             ElevatedButton(
               onPressed: simpanData,
-              child: Text("Simpan"),
+              child: Text("Simpan Data QC"),
+              style: ElevatedButton.styleFrom(
+                minimumSize: Size(double.infinity, 50), // Tombol full width
+              ),
             ),
 
             SizedBox(height: 20),
+            
+            // Text Header untuk ListView
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                "Riwayat Penerimaan:",
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+            ),
+            SizedBox(height: 10),
 
+            // --- LIST RIWAYAT ---
             Expanded(
               child: ListView.builder(
                 itemCount: dataList.length,
                 itemBuilder: (context, index) {
-                  return ListTile(
-                    leading: Icon(Icons.egg, color: Colors.brown),
-                    title: Text("Jumlah: ${dataList[index]['jumlah']}"),
-                    subtitle: Text("Kualitas: ${dataList[index]['kualitas']}"),
+                  // Membedakan warna icon berdasarkan kondisi telur
+                  bool isBagus = dataList[index]['kualitas'] == 'Lolos QC (Bagus)';
+                  
+                  return Card(
+                    child: ListTile(
+                      leading: Icon(
+                        isBagus ? Icons.check_circle : Icons.cancel, 
+                        color: isBagus ? Colors.green : Colors.red
+                      ),
+                      title: Text("Jumlah: ${dataList[index]['jumlah']} butir"),
+                      subtitle: Text("Status: ${dataList[index]['kualitas']}"),
+                    ),
                   );
                 },
               ),
@@ -176,13 +210,16 @@ class _BahanBakuState extends State<BahanBaku> {
     );
   }
 
-  // Fungsi tambahan (Widget Helper) agar kode Card di atas lebih rapi
-  Widget _buildGradeInfo(String gradeName, int total) {
+  // Widget Helper untuk UI Card
+  Widget _buildGradeInfo(String label, int total, Color valueColor) {
     return Column(
       children: [
-        Text(gradeName, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+        Text(label, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
         SizedBox(height: 8),
-        Text("$total", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24, color: Colors.deepOrange)),
+        Text(
+          "$total", 
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24, color: valueColor)
+        ),
       ],
     );
   }

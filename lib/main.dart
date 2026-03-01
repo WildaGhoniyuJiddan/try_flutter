@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_kasir/bahan_baku.dart';
-import 'homepage.dart';
+import 'package:flutter_kasir/dashboard_inventory.dart';
+import 'bahan_baku.dart';
 import 'login.dart';
 import 'produksi.dart';
 
@@ -46,7 +46,7 @@ class HomePage extends StatelessWidget {
                 if (menu[index]["title"] == "Bahan Baku") {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => BahanBaku()),
+                    MaterialPageRoute(builder: (context) => DashboardInventory()),
                   );
                 } 
                 else if (menu[index]["title"] == "Produksi") {
