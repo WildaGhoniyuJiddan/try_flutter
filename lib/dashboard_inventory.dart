@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'login.dart';
 import 'bahan_baku.dart';
 import 'kelola_akun.dart';
+import 'alokasi_stok.dart';
 
 class DashboardInventory extends StatelessWidget {
   
@@ -63,6 +64,13 @@ class DashboardInventory extends StatelessWidget {
                     color: Colors.orange,
                     destination: BahanBaku(), // Mengarah ke form telurmu
                   ),
+                  _buildMenuCard(
+                    context,
+                    title: "Alokasi Stok",
+                    icon: Icons.storefront,
+                    color: Colors.green,
+                    destination: AlokasiStokPage(), 
+                ),
                 ],
               ),
             ),
