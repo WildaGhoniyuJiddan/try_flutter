@@ -81,6 +81,16 @@ class DatabaseHelper {
         status TEXT
       )
     ''');
+
+    // tabel alokasi stok
+    await db.execute('''
+      CREATE TABLE alokasi_stok (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tujuan TEXT,
+        jumlah INTEGER,
+        tgl_alokasi TEXT
+      )
+    ''');
   }
 
   Future<int> insertBahanBaku(int jumlah, String kualitas) async {
@@ -183,5 +193,35 @@ class DatabaseHelper {
   Future<int> deleteUser(int id) async {
     final db = await instance.database;
     return await db.delete('user', where: 'id = ?', whereArgs: [id]);
+  }
+
+    // 1. Tambah data alokasi
+  Future<int> insertAlokasi(String tujuan, int jumlah, String tgl) async {
+    final db = await instance.database;
+    return await db.insert('alokasi_stok', {
+      'tujuan': tujuan,
+      'jumlah': jumlah,
+      'tgl_alokasi': tgl
+    });
+  }
+
+  // 2. Hitung total semua telur yang sudah dialokasikan
+  Future<int> getTotalSemuaAlokasi() async {
+    final db = await instance.database;
+    final result = await db.rawQuery("SELECT SUM(jumlah) as total FROM alokasi_stok");
+    if (result.isNotEmpty && result.first['total'] != null) {
+      return result.first['total'] as int;
+    }
+    return 0;
+  }
+
+  // 3. Hitung total alokasi spesifik (Offline atau Online)
+  Future<int> getTotalAlokasiByTujuan(String tujuan) async {
+    final db = await instance.database;
+    final result = await db.rawQuery("SELECT SUM(jumlah) as total FROM alokasi_stok WHERE tujuan = ?", [tujuan]);
+    if (result.isNotEmpty && result.first['total'] != null) {
+      return result.first['total'] as int;
+    }
+    return 0;
   }
 }
