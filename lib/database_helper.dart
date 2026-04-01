@@ -143,21 +143,15 @@ class DatabaseHelper {
   // 2. Hitung berhasil
   Future<int> getTotalProduksiBerhasil() async {
     final db = await instance.database;
-    final result = await db.rawQuery("SELECT SUM(jumlah_hasil) as total FROM produksi WHERE status = 'Berhasil'");
-    if (result.isNotEmpty && result.first['total'] != null) {
-      return result.first['total'] as int;
-    }
-    return 0;
+    final result = await db.rawQuery("SELECT COALESCE(SUM(jumlah_hasil), 0) as total FROM produksi WHERE status = 'Berhasil'");
+    return result.first['total'] as int;
   }
 
   // 3. Hitung gagal
   Future<int> getTotalProduksiGagal() async {
     final db = await instance.database;
-    final result = await db.rawQuery("SELECT SUM(jumlah_hasil) as total FROM produksi WHERE status = 'Gagal'");
-    if (result.isNotEmpty && result.first['total'] != null) {
-      return result.first['total'] as int;
-    }
-    return 0;
+    final result = await db.rawQuery("SELECT COALESCE(SUM(jumlah_hasil), 0) as total FROM produksi WHERE status = 'Gagal'");
+    return result.first['total'] as int;
   }
 
   // 4. Berapa yang siap pakai
@@ -208,20 +202,15 @@ class DatabaseHelper {
   // 2. Hitung total semua telur yang sudah dialokasikan
   Future<int> getTotalSemuaAlokasi() async {
     final db = await instance.database;
-    final result = await db.rawQuery("SELECT SUM(jumlah) as total FROM alokasi_stok");
-    if (result.isNotEmpty && result.first['total'] != null) {
-      return result.first['total'] as int;
-    }
-    return 0;
+    // Menggunakan COALESCE agar NULL otomatis menjadi 0
+    final result = await db.rawQuery("SELECT COALESCE(SUM(jumlah), 0) as total FROM alokasi_stok");
+    return result.first['total'] as int;
   }
 
   // 3. Hitung total alokasi spesifik (Offline atau Online)
   Future<int> getTotalAlokasiByTujuan(String tujuan) async {
     final db = await instance.database;
-    final result = await db.rawQuery("SELECT SUM(jumlah) as total FROM alokasi_stok WHERE tujuan = ?", [tujuan]);
-    if (result.isNotEmpty && result.first['total'] != null) {
-      return result.first['total'] as int;
-    }
-    return 0;
+    final result = await db.rawQuery("SELECT COALESCE(SUM(jumlah), 0) as total FROM alokasi_stok WHERE tujuan = ?", [tujuan]);
+    return result.first['total'] as int;
   }
 }
