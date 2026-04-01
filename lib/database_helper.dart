@@ -91,6 +91,16 @@ class DatabaseHelper {
         tgl_alokasi TEXT
       )
     ''');
+
+    // tabel transaksi offline (Sprint 5)
+    await db.execute('''
+      CREATE TABLE transaksi_offline (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tgl_transaksi TEXT,
+        jumlah_beli INTEGER,
+        total_harga INTEGER
+      )
+    ''');
   }
 
   Future<int> insertBahanBaku(int jumlah, String kualitas) async {
@@ -211,6 +221,23 @@ class DatabaseHelper {
   Future<int> getTotalAlokasiByTujuan(String tujuan) async {
     final db = await instance.database;
     final result = await db.rawQuery("SELECT COALESCE(SUM(jumlah), 0) as total FROM alokasi_stok WHERE tujuan = ?", [tujuan]);
+    return result.first['total'] as int;
+  }
+
+  // 1. Simpan data penjualan toko offline
+  Future<int> insertTransaksiOffline(int jumlah, int totalHarga, String tgl) async {
+    final db = await instance.database;
+    return await db.insert('transaksi_offline', {
+      'jumlah_beli': jumlah,
+      'total_harga': totalHarga,
+      'tgl_transaksi': tgl
+    });
+  }
+
+  // 2. Hitung total telur yang sudah terjual di toko offline
+  Future<int> getTotalTerjualOffline() async {
+    final db = await instance.database;
+    final result = await db.rawQuery("SELECT COALESCE(SUM(jumlah_beli), 0) as total FROM transaksi_offline");
     return result.first['total'] as int;
   }
 }
