@@ -5,6 +5,7 @@ import 'database_helper.dart';
 import 'dashboard_inventory.dart'; 
 import 'bahan_baku.dart';
 import 'toko_offline.dart';
+import 'toko_online.dart';
 
 class LoginPage extends StatefulWidget {
   @override
@@ -40,6 +41,9 @@ class _LoginPageState extends State<LoginPage> {
           break;
         case 'Staf Offline':
           destinationPage = DashboardTokoOffline(); // Arahkan ke kasir
+          break;
+        case 'Admin Online':
+          destinationPage = DashboardTokoOnline(); // Arahkan ke kasir
           break;
         default:
           destinationPage = LoginPage(); // Fallback opsional
