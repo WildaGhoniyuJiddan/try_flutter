@@ -101,6 +101,17 @@ class DatabaseHelper {
         total_harga INTEGER
       )
     ''');
+
+    // tabel transaksi online (Sprint 6)
+    await db.execute('''
+      CREATE TABLE transaksi_online (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nama_pembeli TEXT,
+        jumlah_beli INTEGER,
+        status TEXT,
+        tgl_pesanan TEXT
+      )
+    ''');
   }
 
   Future<int> insertBahanBaku(int jumlah, String kualitas) async {
@@ -173,7 +184,8 @@ class DatabaseHelper {
     }
     return 0;
   }
-
+  
+  //SPRINT 3
   // 1. CREATE: Tambah user baru
   Future<int> insertUser(Map<String, dynamic> row) async {
     final db = await instance.database;
@@ -198,7 +210,8 @@ class DatabaseHelper {
     final db = await instance.database;
     return await db.delete('user', where: 'id = ?', whereArgs: [id]);
   }
-
+    
+    //SPRINT 4
     // 1. Tambah data alokasi
   Future<int> insertAlokasi(String tujuan, int jumlah, String tgl) async {
     final db = await instance.database;
@@ -224,6 +237,7 @@ class DatabaseHelper {
     return result.first['total'] as int;
   }
 
+  //SPRINT 5
   // 1. Simpan data penjualan toko offline
   Future<int> insertTransaksiOffline(int jumlah, int totalHarga, String tgl) async {
     final db = await instance.database;
@@ -238,6 +252,43 @@ class DatabaseHelper {
   Future<int> getTotalTerjualOffline() async {
     final db = await instance.database;
     final result = await db.rawQuery("SELECT COALESCE(SUM(jumlah_beli), 0) as total FROM transaksi_offline");
+    return result.first['total'] as int;
+  }
+
+  //SPRINT 6
+  // 1. Simulasikan Tarik Data Pesanan Baru dari Marketplace (PBI-032)
+  Future<int> insertPesananOnline(String nama, int jumlah, String tgl) async {
+    final db = await instance.database;
+    return await db.insert('transaksi_online', {
+      'nama_pembeli': nama,
+      'jumlah_beli': jumlah,
+      'status': 'PENDING', // Pesanan baru masuk berstatus PENDING
+      'tgl_pesanan': tgl
+    });
+  }
+
+  // 2. Ambil semua daftar pesanan online
+  Future<List<Map<String, dynamic>>> getPesananOnline() async {
+    final db = await instance.database;
+    // Tampilkan dari yang terbaru (Descending)
+    return await db.query('transaksi_online', orderBy: 'id DESC'); 
+  }
+
+  // 3. Update status menjadi SHIPPED (PBI-033)
+  Future<int> updateStatusPesananOnline(int id) async {
+    final db = await instance.database;
+    return await db.update(
+      'transaksi_online',
+      {'status': 'SHIPPED'},
+      where: 'id = ?',
+      whereArgs: [id]
+    );
+  }
+
+  // 4. Hitung stok online yang SUDAH DIKIRIM (SHIPPED) untuk mengurangi kuota (PBI-033)
+  Future<int> getTotalTerjualOnline() async {
+    final db = await instance.database;
+    final result = await db.rawQuery("SELECT COALESCE(SUM(jumlah_beli), 0) as total FROM transaksi_online WHERE status = 'SHIPPED'");
     return result.first['total'] as int;
   }
 }
