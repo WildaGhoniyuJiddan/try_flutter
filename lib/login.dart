@@ -6,6 +6,7 @@ import 'dashboard_inventory.dart';
 import 'bahan_baku.dart';
 import 'toko_offline.dart';
 import 'toko_online.dart';
+import 'dashboard_owner.dart';
 
 class LoginPage extends StatefulWidget {
   @override
@@ -37,7 +38,7 @@ class _LoginPageState extends State<LoginPage> {
           destinationPage = ProduksiPage(); // Arahkan ke halaman Produsen
         break;
         case 'Owner':
-          //destinationPage = HomeOwner(); // Arahkan ke halaman Owner
+          destinationPage = HomeOwner(); // Arahkan ke halaman Owner
           break;
         case 'Staf Offline':
           destinationPage = DashboardTokoOffline(); // Arahkan ke kasir
