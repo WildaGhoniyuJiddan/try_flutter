@@ -291,4 +291,12 @@ class DatabaseHelper {
     final result = await db.rawQuery("SELECT COALESCE(SUM(jumlah_beli), 0) as total FROM transaksi_online WHERE status = 'SHIPPED'");
     return result.first['total'] as int;
   }
+
+  //SPRINT 7
+  // Hitung total pendapatan uang dari toko offline
+  Future<int> getTotalPendapatanOffline() async {
+    final db = await instance.database;
+    final result = await db.rawQuery("SELECT COALESCE(SUM(total_harga), 0) as total FROM transaksi_offline");
+    return result.first['total'] as int;
+  }
 }
