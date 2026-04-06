@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'database_helper.dart';
 import 'login.dart';
 
+
 class HomeOwner extends StatefulWidget {
   @override
   _HomeOwnerState createState() => _HomeOwnerState();
@@ -14,6 +15,8 @@ class _HomeOwnerState extends State<HomeOwner> {
   int pendapatanOffline = 0;
   int pendapatanOnline = 0;
   int totalPendapatan = 0;
+  int totalPengeluaran = 0;
+  int labaBersih = 0;
 
   final int hargaOnline = 3500; // Asumsi harga online sedikit lebih mahal
 
@@ -29,17 +32,23 @@ class _HomeOwnerState extends State<HomeOwner> {
     int jualOffline = await DatabaseHelper.instance.getTotalTerjualOffline();
     int jualOnline = await DatabaseHelper.instance.getTotalTerjualOnline();
     int uangOffline = await DatabaseHelper.instance.getTotalPendapatanOffline();
+    int pengeluaran = await DatabaseHelper.instance.getTotalPengeluaran();
     
     // Hitung pendapatan online (karena di sprint 6 kita hanya simpan jumlah_beli)
     int uangOnline = jualOnline * hargaOnline;
 
+    // Masukkan SEMUA perhitungan ke dalam setState tanpa kata kunci 'int'
     setState(() {
       totalProduksi = produksi;
+      totalPengeluaran = pengeluaran;
       totalTerjualOffline = jualOffline;
       totalTerjualOnline = jualOnline;
       pendapatanOffline = uangOffline;
       pendapatanOnline = uangOnline;
+      
+      //BUG FIX: Hitung dan langsung ke variabel UI di sini
       totalPendapatan = uangOffline + uangOnline;
+      labaBersih = totalPendapatan - pengeluaran;
     });
   }
 
@@ -116,6 +125,8 @@ class _HomeOwnerState extends State<HomeOwner> {
                   _buildStatCard("Total Terjual", "${totalTerjualOffline + totalTerjualOnline}", Icons.check_circle, Colors.blue),
                   _buildStatCard("Penjualan Offline", "Rp $pendapatanOffline", Icons.storefront, Colors.teal),
                   _buildStatCard("Penjualan Online", "Rp $pendapatanOnline", Icons.shopping_cart, Colors.purple),
+                  _buildStatCard("Total Pengeluaran", "Rp $totalPengeluaran", Icons.payments, Colors.red),
+                  _buildStatCard("Laba Bersih", "Rp $labaBersih", Icons.account_balance_wallet, Colors.green),
                 ],
               ),
 
