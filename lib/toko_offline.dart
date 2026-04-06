@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'database_helper.dart';
 import 'login.dart';
 
@@ -38,11 +39,11 @@ class _DashboardTokoOfflineState extends State<DashboardTokoOffline> {
       return;
     }
 
-    int jumlahBeli = int.parse(jumlahText);
+    int? jumlahBeli = int.tryParse(jumlahText);
 
-    // Validasi ketersediaan stok (PBI-027)
-    if (jumlahBeli <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Jumlah tidak valid!")));
+    // Validasi ketersediaan stok & cegah angka 0
+    if (jumlahBeli == null || jumlahBeli <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Jumlah tidak valid! Harus lebih dari 0."), backgroundColor: Colors.red));
       return;
     }
     if (jumlahBeli > stokTersedia) {
@@ -140,6 +141,7 @@ class _DashboardTokoOfflineState extends State<DashboardTokoOffline> {
             TextField(
               controller: jumlahController,
               keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               decoration: InputDecoration(
                 labelText: "Jumlah Beli (Butir)",
                 border: OutlineInputBorder(),

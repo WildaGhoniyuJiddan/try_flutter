@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'database_helper.dart';
 import 'login.dart'; 
 
@@ -49,7 +50,15 @@ class _ProduksiPageState extends State<ProduksiPage> {
       return;
     }
 
-    int jumlah = int.parse(jumlahText);
+    int? jumlah = int.tryParse(jumlahText);
+
+    // Cegah angka 0
+    if (jumlah == null || jumlah <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Jumlah tidak valid! Harus lebih dari 0."), backgroundColor: Colors.red)
+      );
+      return;
+    }
     
     // Validasi: Cegah produksi jika melebihi sisa stok mentah di gudang
     if (jumlah > stokBahanBakuMentah) {
@@ -168,6 +177,7 @@ class _ProduksiPageState extends State<ProduksiPage> {
             TextField(
               controller: jumlahController,
               keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               decoration: InputDecoration(
                 labelText: "Jumlah Telur",
                 border: OutlineInputBorder(),
