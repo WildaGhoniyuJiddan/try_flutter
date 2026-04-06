@@ -3,6 +3,7 @@ import 'login.dart';
 import 'bahan_baku.dart';
 import 'kelola_akun.dart';
 import 'alokasi_stok.dart';
+import 'manajemen_supplier.dart';
 
 class DashboardInventory extends StatelessWidget {
   
@@ -70,7 +71,14 @@ class DashboardInventory extends StatelessWidget {
                     icon: Icons.storefront,
                     color: Colors.green,
                     destination: AlokasiStokPage(), 
-                ),
+                  ),
+                  _buildMenuCard(
+                    context,
+                    title: "Supplier",
+                    icon: Icons.local_shipping,
+                    color: Colors.orange,
+                    destination: ManajemenSupplierPage(), 
+                  ),
                 ],
               ),
             ),
