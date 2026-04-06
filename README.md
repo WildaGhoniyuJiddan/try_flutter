@@ -36,5 +36,4 @@ Dalam bisnis produksi telur asin skala menengah, pencatatan stok yang dilakukan 
 
 1. **Clone Repository**
    ```bash
-   git clone [https://github.com/username-kamu/SaltIT.git](https://github.com/username-kamu/SaltIT.git)
-   cd SaltIT
+   git clone https://github.com/WildaGhoniyuJiddan/try_flutter/releases/tag/v1.0.0
