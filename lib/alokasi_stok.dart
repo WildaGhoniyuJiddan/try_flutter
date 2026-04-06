@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'database_helper.dart';
 
 class AlokasiStokPage extends StatefulWidget {
@@ -49,7 +50,15 @@ class _AlokasiStokPageState extends State<AlokasiStokPage> {
       return;
     }
 
-    int jumlah = int.parse(jumlahText);
+   int? jumlah = int.tryParse(jumlahText);
+
+    // Cegah angka 0 atau input tidak valid
+    if (jumlah == null || jumlah <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Jumlah tidak valid! Harus lebih dari 0."), backgroundColor: Colors.red)
+      );
+      return;
+    }
 
     // VALIDASI: Tidak boleh alokasi melebihi stok yang ada
     if (jumlah > stokSiapAlokasi) {
@@ -139,6 +148,7 @@ class _AlokasiStokPageState extends State<AlokasiStokPage> {
             TextField(
               controller: jumlahController,
               keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               decoration: InputDecoration(labelText: "Jumlah Telur", border: OutlineInputBorder()),
             ),
             SizedBox(height: 16),

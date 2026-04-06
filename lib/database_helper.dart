@@ -112,6 +112,18 @@ class DatabaseHelper {
         tgl_pesanan TEXT
       )
     ''');
+
+    // tabel supplier modul baru
+    await db.execute('''
+      CREATE TABLE supplier (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nama_peternak TEXT,
+        jumlah_telur INTEGER,
+        harga_per_butir INTEGER,
+        total_bayar INTEGER,
+        tgl_beli TEXT
+      )
+    ''');
   }
 
   Future<int> insertBahanBaku(int jumlah, String kualitas) async {
@@ -297,6 +309,40 @@ class DatabaseHelper {
   Future<int> getTotalPendapatanOffline() async {
     final db = await instance.database;
     final result = await db.rawQuery("SELECT COALESCE(SUM(total_harga), 0) as total FROM transaksi_offline");
+    return result.first['total'] as int;
+  }
+
+  // --- FUNGSI MANAJEMEN SUPPLIER ---
+
+  // Simpan transaksi pembelian dari peternak
+  Future<int> insertSupplier(String nama, int jumlah, int harga, int total, String tgl) async {
+    final db = await instance.database;
+    return await db.insert('supplier', {
+      'nama_peternak': nama,
+      'jumlah_telur': jumlah,
+      'harga_per_butir': harga,
+      'total_bayar': total,
+      'tgl_beli': tgl
+    });
+  }
+
+  // Ambil semua riwayat pembelian
+  Future<List<Map<String, dynamic>>> getSuppliers() async {
+    final db = await instance.database;
+    return await db.query('supplier', orderBy: 'id DESC');
+  }
+
+  // Hitung total semua telur yang pernah dibeli dari supplier
+  Future<int> getTotalPembelian() async {
+    final db = await instance.database;
+    final result = await db.rawQuery("SELECT COALESCE(SUM(jumlah_telur), 0) as total FROM supplier");
+    return result.first['total'] as int;
+  }
+
+  // Hitung TOTAL PENGELUARAN (Modal) untuk Dashboard Owner
+  Future<int> getTotalPengeluaran() async {
+    final db = await instance.database;
+    final result = await db.rawQuery("SELECT COALESCE(SUM(total_bayar), 0) as total FROM supplier");
     return result.first['total'] as int;
   }
 }
