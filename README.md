@@ -22,6 +22,8 @@ Dalam bisnis produksi telur asin skala menengah, pencatatan stok yang dilakukan 
 * 🛒 **Point of Sales (POS) Offline:** Sistem kasir sederhana dengan validasi ketersediaan stok etalase.
 * 🌐 **Manajemen Pesanan Online:** Tarik data pesanan (*mockup*) dan *update* status pengiriman barang.
 * 📊 **Executive Dashboard:** Ringkasan performa produksi, omzet penjualan, dan simulasi *export* laporan PDF untuk *Owner*.
+* **PENAMBAHAN MODUL BARU**
+* **Manajemen Supplier:** Mencatat Supplier yang mengirimkan telur.
 
 ## 🛠️ Tech Stack
 
