@@ -69,6 +69,54 @@ class _HomeOwnerState extends State<HomeOwner> {
     );
   }
 
+  // --- FUNGSI UBAH PASSWORD ---
+  void _ubahPassword() {
+    final TextEditingController passwordBaruController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text("Ubah Password"),
+        content: TextField(
+          controller: passwordBaruController,
+          obscureText: true,
+          decoration: InputDecoration(
+            labelText: "Password Baru",
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text("Batal"),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (passwordBaruController.text.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                   SnackBar(content: Text("Password baru tidak boleh kosong!"), backgroundColor: Colors.red),
+                );
+                return;
+              }
+
+              // Asumsi email Owner. (Sebaiknya email disimpan di SharedPreferences saat login)
+              String emailOwner = "owner@admin.com"; 
+
+              await DatabaseHelper.instance.updatePassword(emailOwner, passwordBaruController.text);
+              
+              Navigator.pop(ctx);
+              
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text("Password berhasil diubah!"), backgroundColor: Colors.green),
+              );
+            },
+            child: Text("Simpan"),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _logout() {
     Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => LoginPage()));
   }
@@ -81,6 +129,13 @@ class _HomeOwnerState extends State<HomeOwner> {
         title: Text("Dashboard Owner"),
         backgroundColor: Colors.blueGrey,
         actions: [
+          // --- TAMBAH INI: Tombol Ubah Password ---
+          IconButton(
+            icon: Icon(Icons.vpn_key),
+            tooltip: "Ubah Password",
+            onPressed: _ubahPassword,
+          ),
+          // ----------------------------------------
           IconButton(icon: Icon(Icons.logout), onPressed: _logout)
         ],
       ),

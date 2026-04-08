@@ -86,6 +86,54 @@ class _ProduksiPageState extends State<ProduksiPage> {
     );
   }
 
+  // --- FUNGSI BARU: UBAH PASSWORD ---
+  void _ubahPassword() {
+    final TextEditingController passwordBaruController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text("Ubah Password"),
+        content: TextField(
+          controller: passwordBaruController,
+          obscureText: true,
+          decoration: InputDecoration(
+            labelText: "Password Baru",
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text("Batal"),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (passwordBaruController.text.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                   SnackBar(content: Text("Password baru tidak boleh kosong!"), backgroundColor: Colors.red),
+                );
+                return;
+              }
+
+              // Asumsi email Produsen sesuai data bawaan di SQLite
+              String emailProdusen = "produsen@admin.com"; 
+
+              await DatabaseHelper.instance.updatePassword(emailProdusen, passwordBaruController.text);
+              
+              Navigator.pop(ctx);
+              
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text("Password berhasil diubah!"), backgroundColor: Colors.green),
+              );
+            },
+            child: Text("Simpan"),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _logout() {
     Navigator.pushReplacement(
       context,
@@ -100,6 +148,12 @@ class _ProduksiPageState extends State<ProduksiPage> {
         automaticallyImplyLeading: false,
         title: Text("Dashboard Produsen"),
         actions: [
+          // --- TAMBAH INI: Tombol Ubah Password ---
+          IconButton(
+            icon: Icon(Icons.vpn_key),
+            tooltip: "Ubah Password",
+            onPressed: _ubahPassword,
+          ),
           IconButton(
             icon: Icon(Icons.logout),
             onPressed: _logout,

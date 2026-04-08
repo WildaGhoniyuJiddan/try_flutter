@@ -345,4 +345,16 @@ class DatabaseHelper {
     final result = await db.rawQuery("SELECT COALESCE(SUM(total_bayar), 0) as total FROM supplier");
     return result.first['total'] as int;
   }
+
+  //Maintenance masing masing user
+  // Fungsi untuk mengubah password berdasarkan email
+  Future<int> updatePassword(String email, String passwordBaru) async {
+    final db = await instance.database;
+    return await db.update(
+      'user',
+      {'password': passwordBaru},
+      where: 'email = ?',
+      whereArgs: [email],
+    );
+  }
 }

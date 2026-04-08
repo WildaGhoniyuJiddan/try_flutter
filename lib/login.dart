@@ -47,6 +47,46 @@ class _LoginPageState extends State<LoginPage> {
     });
   }
 
+  // --- FUNGSI BARU: LUPA PASSWORD ---
+  void _lupaPassword() {
+    if (emailController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Email tidak boleh kosong!"), backgroundColor: Colors.red),
+      );
+      return;
+    }
+
+    String emailReset = emailController.text;
+
+    // Tampilkan konfirmasi
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text("Reset Password"),
+        content: Text("Password untuk akun $emailReset akan direset menjadi '123456'. Apakah Anda yakin?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text("Batal"),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              // Panggil fungsi update password dari database
+              await DatabaseHelper.instance.updatePassword(emailReset, '123456');
+              
+              Navigator.pop(ctx); // Tutup dialog
+              
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text("Password berhasil direset! Silakan login dengan password baru."), backgroundColor: Colors.green),
+              );
+            },
+            child: Text("Reset Password"),
+          ),
+        ],
+      ),
+    );
+  }
+
   // LOGIKA LOGIN ASLIMU (Terhubung ke SQLite)
   Future<void> handleLogin() async {
     String email = emailController.text;
@@ -220,7 +260,17 @@ class _LoginPageState extends State<LoginPage> {
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
               ),
             ),
-            SizedBox(height: 30),
+            
+            // --- FUNGSI BARU: TOMBOL LUPA PASSWORD ---
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: _lupaPassword,
+                child: Text("Lupa Password?", style: TextStyle(color: Colors.blueGrey)),
+              ),
+            ),
+
+            SizedBox(height: 10),
 
             // Tombol Login (Memanggil handleLogin aslimu)
             ElevatedButton(
