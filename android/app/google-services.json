@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "219432835653",
+    "project_id": "saltit-a6595",
+    "storage_bucket": "saltit-a6595.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:219432835653:android:049d89e8234e7b9528e12c",
+        "android_client_info": {
+          "package_name": "com.example.flutter_kasir"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBn2AVFV5AwFDZ_jQzCTrtiZ5AO1y136Ls"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
