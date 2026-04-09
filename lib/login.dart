@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // MENGGUNAKAN FIREBASE AUTH
 import 'package:flutter_kasir/produksi.dart';
-import 'database_helper.dart';
+import 'firebase_service.dart'; // MENGGUNAKAN FIREBASE FIRESTORE
 
 // Import halaman untuk masing-masing role
 import 'dashboard_inventory.dart'; 
@@ -15,13 +16,11 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  // Variabel penentu UI: Kalau null = Tampil menu pilihan. Kalau ada isi = Tampil form.
   String? roleTerpilih; 
   
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
 
-  // Daftar Role beserta warna dan ikonnya
   final List<Map<String, dynamic>> listRole = [
     {'nama': 'Manajer Inventory', 'email': 'manajer@admin.com', 'icon': Icons.inventory, 'warna': Colors.orange},
     {'nama': 'Produsen', 'email': 'produsen@admin.com', 'icon': Icons.factory, 'warna': Colors.blue},
@@ -30,15 +29,13 @@ class _LoginPageState extends State<LoginPage> {
     {'nama': 'Owner', 'email': 'owner@admin.com', 'icon': Icons.admin_panel_settings, 'warna': Colors.red},
   ];
 
-  // Fungsi saat Role diklik
   void _pilihRole(String namaRole, String emailDefault) {
     setState(() {
       roleTerpilih = namaRole;
-      emailController.text = emailDefault; // Auto-fill email
+      emailController.text = emailDefault; 
     });
   }
 
-  // Fungsi tombol kembali (Back) ke pemilihan Role
   void _kembali() {
     setState(() {
       roleTerpilih = null;
@@ -47,7 +44,7 @@ class _LoginPageState extends State<LoginPage> {
     });
   }
 
-  // --- FUNGSI BARU: LUPA PASSWORD ---
+  // --- FUNGSI LUPA PASSWORD FIREBASE ---
   void _lupaPassword() {
     if (emailController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -58,12 +55,11 @@ class _LoginPageState extends State<LoginPage> {
 
     String emailReset = emailController.text;
 
-    // Tampilkan konfirmasi
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text("Reset Password"),
-        content: Text("Password untuk akun $emailReset akan direset menjadi '123456'. Apakah Anda yakin?"),
+        content: Text("Link untuk mereset password akan dikirim ke email $emailReset. Lanjutkan?"),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -71,69 +67,115 @@ class _LoginPageState extends State<LoginPage> {
           ),
           ElevatedButton(
             onPressed: () async {
-              // Panggil fungsi update password dari database
-              await DatabaseHelper.instance.updatePassword(emailReset, '123456');
-              
-              Navigator.pop(ctx); // Tutup dialog
-              
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text("Password berhasil direset! Silakan login dengan password baru."), backgroundColor: Colors.green),
-              );
+              try {
+                // Firebase yang akan otomatis mengirimkan email ke pengguna
+                await FirebaseAuth.instance.sendPasswordResetEmail(email: emailReset);
+                
+                Navigator.pop(ctx); 
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text("Link reset password telah dikirim ke email Anda!"), backgroundColor: Colors.green),
+                );
+              } catch (e) {
+                Navigator.pop(ctx);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text("Gagal mengirim email. Pastikan format email benar."), backgroundColor: Colors.red),
+                );
+              }
             },
-            child: Text("Reset Password"),
+            child: Text("Kirim Email Reset"),
           ),
         ],
       ),
     );
   }
 
-  // LOGIKA LOGIN ASLIMU (Terhubung ke SQLite)
+  // --- LOGIKA LOGIN FIREBASE ---
   Future<void> handleLogin() async {
-    String email = emailController.text;
+    String email = emailController.text.trim();
     String password = passwordController.text;
 
-    // Validasi input kosong
-    if (password.isEmpty) {
+    if (password.isEmpty || email.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Password harus diisi!"), backgroundColor: Colors.red)
+        SnackBar(content: Text("Email dan Password harus diisi!"), backgroundColor: Colors.red)
       );
       return;
     }
 
-    // Pengecekan ke Database (Sesuai kodemu)
-    String? userRole = await DatabaseHelper.instance.login(email, password);
+    // Tampilkan loading screen
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => Center(child: CircularProgressIndicator()),
+    );
 
-    if (userRole != null) {
-      Widget destinationPage = LoginPage();
+    try {
+      // 1. Minta "Satpam" (Firebase Auth) untuk membukakan pintu
+      await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: email, 
+        password: password
+      );
 
-      // Navigasi bersyarat berdasarkan Role dari Database
-      switch (userRole) {
-        case 'Manajer Inventory':
-          destinationPage = DashboardInventory(); 
-          break;
-        case 'Produsen':
-          destinationPage = ProduksiPage(); 
-          break;
-        case 'Owner':
-          destinationPage = HomeOwner(); 
-          break;
-        case 'Staf Offline':
-          destinationPage = DashboardTokoOffline(); 
-          break;
-        case 'Admin Online':
-          destinationPage = DashboardTokoOnline(); 
-          break;
-        default:
-          destinationPage = LoginPage(); 
+      // 2. Minta "HRD" (Firestore) untuk mengecek jabatan orang ini
+      String? userRole = await FirebaseService.getUserRoleByEmail(email);
+      
+      Navigator.pop(context); // Tutup loading
+
+      if (userRole != null) {
+        // Cocokkan apakah role yang dia klik di awal sesuai dengan aslinya
+        if (roleTerpilih != 'Admin Online' && userRole != roleTerpilih) {
+           ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Akses ditolak! Anda terdaftar sebagai $userRole."), backgroundColor: Colors.red),
+          );
+          await FirebaseAuth.instance.signOut(); // Tendang keluar lagi
+          return;
+        }
+
+        Widget destinationPage = LoginPage();
+
+        switch (userRole) {
+          case 'Manajer Inventory':
+            destinationPage = DashboardInventory(); 
+            break;
+          case 'Produsen':
+            destinationPage = ProduksiPage(); 
+            break;
+          case 'Owner':
+            destinationPage = HomeOwner(); 
+            break;
+          case 'Staf Offline':
+            destinationPage = DashboardTokoOffline(); 
+            break;
+          case 'Admin Online':
+            destinationPage = DashboardTokoOnline(); 
+            break;
+          default:
+            destinationPage = LoginPage(); 
+        }
+
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => destinationPage),
+        );
+      } else {
+        // Berhasil login Auth, tapi datanya belum didaftarkan oleh Owner di Firestore (Kelola Akun)
+        await FirebaseAuth.instance.signOut();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Akun belum didaftarkan di sistem HRD pabrik!"), backgroundColor: Colors.orange),
+        );
       }
 
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => destinationPage),
-      );
-    } else {
+    } on FirebaseAuthException catch (e) {
+      Navigator.pop(context); // Tutup loading
+      
+      String pesanError = "Terjadi kesalahan.";
+      if (e.code == 'user-not-found' || e.code == 'wrong-password' || e.code == 'invalid-credential') {
+        pesanError = "Email atau Password salah!";
+      } else if (e.code == 'invalid-email') {
+        pesanError = "Format email tidak valid!";
+      }
+
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Password salah!"), backgroundColor: Colors.red),
+        SnackBar(content: Text(pesanError), backgroundColor: Colors.red),
       );
     }
   }
@@ -148,14 +190,12 @@ class _LoginPageState extends State<LoginPage> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Logo Aplikasi
               Icon(Icons.egg_alt, size: 80, color: Colors.orange.shade600),
               SizedBox(height: 10),
               Text("SaltIT", style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.blueGrey[800])),
               Text("Sistem Manajemen Telur Asin", style: TextStyle(color: Colors.grey[600])),
               SizedBox(height: 40),
 
-              // LOGIKA UI: Tampilkan Form JIKA role sudah dipilih, jika belum tampilkan Pilihan Role
               roleTerpilih != null ? _buildLoginForm() : _buildRoleSelection(),
             ],
           ),
@@ -164,7 +204,6 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  // TAMPILAN 1: GRID PILIHAN ROLE
   Widget _buildRoleSelection() {
     return Column(
       children: [
@@ -208,7 +247,6 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  // TAMPILAN 2: FORM LOGIN (Setelah klik Role)
   Widget _buildLoginForm() {
     return Card(
       elevation: 5,
@@ -236,10 +274,9 @@ class _LoginPageState extends State<LoginPage> {
             ),
             SizedBox(height: 20),
             
-            // Field Email (Otomatis terisi, diset read-only / abu-abu)
             TextField(
               controller: emailController,
-              readOnly: roleTerpilih != 'Admin Online', // Hanya Admin Online yang bisa edit email
+              readOnly: roleTerpilih != 'Admin Online', 
               decoration: InputDecoration(
                 labelText: "Email Akun",
                 prefixIcon: Icon(Icons.email),
@@ -250,7 +287,6 @@ class _LoginPageState extends State<LoginPage> {
             ),
             SizedBox(height: 15),
 
-            // Field Password
             TextField(
               controller: passwordController,
               obscureText: true,
@@ -261,7 +297,6 @@ class _LoginPageState extends State<LoginPage> {
               ),
             ),
             
-            // --- FUNGSI BARU: TOMBOL LUPA PASSWORD ---
             Align(
               alignment: Alignment.centerRight,
               child: TextButton(
@@ -272,7 +307,6 @@ class _LoginPageState extends State<LoginPage> {
 
             SizedBox(height: 10),
 
-            // Tombol Login (Memanggil handleLogin aslimu)
             ElevatedButton(
               onPressed: handleLogin,
               style: ElevatedButton.styleFrom(
