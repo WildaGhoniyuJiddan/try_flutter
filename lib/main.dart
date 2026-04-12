@@ -1,10 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart'; // TAMBAHAN 1: Import Firebase Core
+import 'firebase_options.dart'; // TAMBAHAN 2: Import opsi Firebase hasil generate
+
 import 'package:flutter_kasir/dashboard_inventory.dart';
 import 'bahan_baku.dart';
 import 'login.dart';
 import 'produksi.dart';
 
-void main() {
+// TAMBAHAN 3: Ubah main() menjadi async
+void main() async {
+  // TAMBAHAN 4: Pastikan pondasi Flutter siap sebelum memuat Firebase
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // TAMBAHAN 5: Nyalakan mesin Firebase
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
   runApp(MyTelur());
 }
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'database_helper.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // Tambahan untuk ubah password Auth
+import 'firebase_service.dart'; // MENGGUNAKAN FIREBASE, BUKAN SQLITE
 import 'login.dart'; 
 
 class ProduksiPage extends StatefulWidget {
@@ -15,7 +16,7 @@ class _ProduksiPageState extends State<ProduksiPage> {
   final List<String> listStatus = ['Berhasil (Jadi)', 'Gagal (Rusak)'];
 
   int totalTelurAsin = 0;
-  int totalGagal = 0; // Tambahan variabel untuk telur gagal
+  int totalGagal = 0; 
   int stokBahanBakuMentah = 0;
 
   @override
@@ -24,19 +25,22 @@ class _ProduksiPageState extends State<ProduksiPage> {
     loadDashboardData(); 
   }
 
-  // Mengambil total telur asin, gagal, dan MENGHITUNG SISA telur mentah
+  // Mengambil data dari Firebase Firestore
   Future<void> loadDashboardData() async {
-    int totalAsinBerhasil = await DatabaseHelper.instance.getTotalProduksiBerhasil();
-    int totalAsinGagal = await DatabaseHelper.instance.getTotalProduksiGagal();
-    int totalTelurMentah = await DatabaseHelper.instance.getTotalBahanBakuLolosQC();
+    // 1. Ambil Total Telur Mentah (Bahan Baku)
+    int totalTelurMentah = await FirebaseService.getTotalBahanBakuLolosQC();
     
-    // Rumus Dinamis: Sisa Stok Mentah = Telur Mentah - (Berhasil + Gagal)
+    // 2. Ambil Total Produksi
+    int totalAsinBerhasil = await FirebaseService.getTotalProduksiByStatus('Berhasil');
+    int totalAsinGagal = await FirebaseService.getTotalProduksiByStatus('Gagal');
+    
+    // 3. Kalkulasi Sisa Mentah
     int sisaMentah = totalTelurMentah - (totalAsinBerhasil + totalAsinGagal);
     
     setState(() {
       totalTelurAsin = totalAsinBerhasil;
       totalGagal = totalAsinGagal;
-      stokBahanBakuMentah = sisaMentah;
+      stokBahanBakuMentah = sisaMentah; // Akan minus jika data awal tidak sinkron
     });
   }
 
@@ -52,7 +56,6 @@ class _ProduksiPageState extends State<ProduksiPage> {
 
     int? jumlah = int.tryParse(jumlahText);
 
-    // Cegah angka 0
     if (jumlah == null || jumlah <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Jumlah tidak valid! Harus lebih dari 0."), backgroundColor: Colors.red)
@@ -68,12 +71,20 @@ class _ProduksiPageState extends State<ProduksiPage> {
       return;
     }
 
-    String tglSekarang = DateTime.now().toString().split(' ')[0];
+    // Tampilkan loading saat menyimpan ke internet
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => Center(child: CircularProgressIndicator()),
+    );
+
     String statusDB = statusTerpilih == 'Berhasil (Jadi)' ? 'Berhasil' : 'Gagal';
 
-    // Simpan ke database
-    await DatabaseHelper.instance.insertProduksi(jumlah, tglSekarang, statusDB);
+    // Simpan ke Firestore
+    await FirebaseService.insertProduksi(jumlah, statusDB);
     
+    Navigator.pop(context); // Tutup loading
+
     jumlahController.clear();
     setState(() {
       statusTerpilih = null;
@@ -86,7 +97,7 @@ class _ProduksiPageState extends State<ProduksiPage> {
     );
   }
 
-  // --- FUNGSI BARU: UBAH PASSWORD ---
+  // --- FUNGSI BARU: UBAH PASSWORD (FIREBASE AUTH) ---
   void _ubahPassword() {
     final TextEditingController passwordBaruController = TextEditingController();
 
@@ -116,16 +127,26 @@ class _ProduksiPageState extends State<ProduksiPage> {
                 return;
               }
 
-              // Asumsi email Produsen sesuai data bawaan di SQLite
-              String emailProdusen = "produsen@admin.com"; 
-
-              await DatabaseHelper.instance.updatePassword(emailProdusen, passwordBaruController.text);
-              
-              Navigator.pop(ctx);
-              
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text("Password berhasil diubah!"), backgroundColor: Colors.green),
-              );
+              try {
+                // Di Firebase, ganti password dilakukan pada user yang SEDANG LOGIN saat ini
+                User? userSaatIni = FirebaseAuth.instance.currentUser;
+                
+                if (userSaatIni != null) {
+                  await userSaatIni.updatePassword(passwordBaruController.text);
+                  Navigator.pop(ctx);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text("Password berhasil diubah!"), backgroundColor: Colors.green),
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text("Gagal: Anda harus login ulang!"), backgroundColor: Colors.red),
+                  );
+                }
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                   SnackBar(content: Text("Error: Gagal mengubah password (Mungkin perlu re-login)"), backgroundColor: Colors.red),
+                );
+              }
             },
             child: Text("Simpan"),
           ),
@@ -134,7 +155,8 @@ class _ProduksiPageState extends State<ProduksiPage> {
     );
   }
 
-  void _logout() {
+  void _logout() async {
+    await FirebaseAuth.instance.signOut(); // Logout dari Firebase
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(builder: (context) => LoginPage()),
@@ -148,7 +170,6 @@ class _ProduksiPageState extends State<ProduksiPage> {
         automaticallyImplyLeading: false,
         title: Text("Dashboard Produsen"),
         actions: [
-          // --- TAMBAH INI: Tombol Ubah Password ---
           IconButton(
             icon: Icon(Icons.vpn_key),
             tooltip: "Ubah Password",
@@ -165,10 +186,8 @@ class _ProduksiPageState extends State<ProduksiPage> {
         padding: EdgeInsets.all(16),
         child: Column(
           children: [
-            
             Row(
               children: [
-                // Kotak 1: Sisa Bahan Baku (Orange)
                 Expanded(
                   child: Card(
                     color: Colors.orange.shade50,
@@ -184,7 +203,6 @@ class _ProduksiPageState extends State<ProduksiPage> {
                     ),
                   ),
                 ),
-                // Kotak 2: Telur Asin Berhasil (Biru)
                 Expanded(
                   child: Card(
                     color: Colors.blue.shade50,
@@ -200,7 +218,6 @@ class _ProduksiPageState extends State<ProduksiPage> {
                     ),
                   ),
                 ),
-                // Kotak 3: Produksi Gagal (Merah)
                 Expanded(
                   child: Card(
                     color: Colors.red.shade50,
@@ -221,7 +238,6 @@ class _ProduksiPageState extends State<ProduksiPage> {
             
             SizedBox(height: 30),
 
-            // --- FORM INPUT PRODUKSI ---
             Align(
               alignment: Alignment.centerLeft,
               child: Text("Input Hasil Produksi Baru:", style: TextStyle(fontWeight: FontWeight.bold)),
