@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
-import 'database_helper.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // MENGGUNAKAN FIREBASE AUTH
+import 'firebase_service.dart'; // MENGGUNAKAN FIREBASE FIRESTORE
 import 'login.dart';
-
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 
 class HomeOwner extends StatefulWidget {
   @override
@@ -27,17 +30,17 @@ class _HomeOwnerState extends State<HomeOwner> {
   }
 
   Future<void> loadLaporan() async {
-    // Tarik semua data dari database helper
-    int produksi = await DatabaseHelper.instance.getTotalProduksiBerhasil();
-    int jualOffline = await DatabaseHelper.instance.getTotalTerjualOffline();
-    int jualOnline = await DatabaseHelper.instance.getTotalTerjualOnline();
-    int uangOffline = await DatabaseHelper.instance.getTotalPendapatanOffline();
-    int pengeluaran = await DatabaseHelper.instance.getTotalPengeluaran();
+    // Tarik semua data dari Cloud Firestore
+    int produksi = await FirebaseService.getTotalProduksiByStatus('Berhasil');
+    int jualOffline = await FirebaseService.getTotalTerjualOffline();
+    int jualOnline = await FirebaseService.getTotalTerjualOnline();
     
-    // Hitung pendapatan online (karena di sprint 6 kita hanya simpan jumlah_beli)
+    int uangOffline = await FirebaseService.getTotalPendapatanOffline();
+    int pengeluaran = await FirebaseService.getTotalPengeluaran();
+    
+    // Hitung pendapatan online
     int uangOnline = jualOnline * hargaOnline;
 
-    // Masukkan SEMUA perhitungan ke dalam setState tanpa kata kunci 'int'
     setState(() {
       totalProduksi = produksi;
       totalPengeluaran = pengeluaran;
@@ -46,30 +49,86 @@ class _HomeOwnerState extends State<HomeOwner> {
       pendapatanOffline = uangOffline;
       pendapatanOnline = uangOnline;
       
-      //BUG FIX: Hitung dan langsung ke variabel UI di sini
+      // Hitung dan langsung ke variabel UI di sini
       totalPendapatan = uangOffline + uangOnline;
       labaBersih = totalPendapatan - pengeluaran;
     });
   }
 
-  // Simulasi PBI-037: Export Laporan
-  void exportLaporan() {
+// Fungsi Export Laporan PDF Asli
+  Future<void> exportLaporan() async {
+    // 1. Tampilkan loading agar user tahu sistem sedang membuat PDF
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text("Export Berhasil"),
-        content: Text("Laporan bulan ini berhasil diunduh dan disimpan dalam format PDF di folder Dokumen Anda."),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text("Tutup"),
-          )
-        ],
+      barrierDismissible: false,
+      builder: (context) => Center(child: CircularProgressIndicator()),
+    );
+
+    // 2. Siapkan kertas PDF kosong
+    final pdf = pw.Document();
+
+    // 3. Gambar isi laporannya
+    pdf.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.a4,
+        build: (pw.Context context) {
+          return pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Center(
+                child: pw.Text("LAPORAN KEUANGAN SALT-IT", style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold)),
+              ),
+              pw.SizedBox(height: 10),
+              pw.Center(
+                child: pw.Text("Periode: ${DateTime.now().toString().split(' ')[0]}"),
+              ),
+              pw.Divider(thickness: 2),
+              pw.SizedBox(height: 20),
+              
+              pw.Text("A. Ringkasan Operasional", style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
+              pw.SizedBox(height: 10),
+              pw.Text("1. Total Produksi Berhasil : $totalProduksi Butir"),
+              pw.Text("2. Total Terjual           : ${totalTerjualOffline + totalTerjualOnline} Butir"),
+              pw.SizedBox(height: 20),
+              
+              pw.Text("B. Ringkasan Keuangan", style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
+              pw.SizedBox(height: 10),
+              pw.Text("1. Pendapatan Toko Offline : Rp $pendapatanOffline"),
+              pw.Text("2. Pendapatan Toko Online  : Rp $pendapatanOnline"),
+              pw.Text("3. Total Pengeluaran       : Rp $totalPengeluaran"),
+              pw.Divider(),
+              pw.Text("TOTAL OMZET                : Rp $totalPendapatan", style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+              pw.Text("LABA BERSIH                : Rp $labaBersih", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 16)),
+              
+              pw.SizedBox(height: 40),
+              pw.Align(
+                alignment: pw.Alignment.centerRight,
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.center,
+                  children: [
+                    pw.Text("Mengetahui,"),
+                    pw.SizedBox(height: 40),
+                    pw.Text("( Owner SaltIT )", style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                  ]
+                )
+              )
+            ],
+          );
+        },
       ),
+    );
+
+    // 4. Tutup loading dialog
+    Navigator.pop(context);
+
+    // 5. Munculkan menu Share bawaan HP untuk menyimpan atau mengirim PDF
+    await Printing.sharePdf(
+      bytes: await pdf.save(), 
+      filename: 'Laporan_Keuangan_SaltIT.pdf'
     );
   }
 
-  // --- FUNGSI UBAH PASSWORD ---
+  // --- FUNGSI UBAH PASSWORD FIREBASE ---
   void _ubahPassword() {
     final TextEditingController passwordBaruController = TextEditingController();
 
@@ -99,16 +158,25 @@ class _HomeOwnerState extends State<HomeOwner> {
                 return;
               }
 
-              // Asumsi email Owner. (Sebaiknya email disimpan di SharedPreferences saat login)
-              String emailOwner = "owner@admin.com"; 
-
-              await DatabaseHelper.instance.updatePassword(emailOwner, passwordBaruController.text);
-              
-              Navigator.pop(ctx);
-              
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text("Password berhasil diubah!"), backgroundColor: Colors.green),
-              );
+              try {
+                User? userSaatIni = FirebaseAuth.instance.currentUser;
+                
+                if (userSaatIni != null) {
+                  await userSaatIni.updatePassword(passwordBaruController.text);
+                  Navigator.pop(ctx);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text("Password berhasil diubah!"), backgroundColor: Colors.green),
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text("Gagal: Anda harus login ulang!"), backgroundColor: Colors.red),
+                  );
+                }
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                   SnackBar(content: Text("Error: Gagal mengubah password (Mungkin perlu re-login)"), backgroundColor: Colors.red),
+                );
+              }
             },
             child: Text("Simpan"),
           ),
@@ -117,7 +185,8 @@ class _HomeOwnerState extends State<HomeOwner> {
     );
   }
 
-  void _logout() {
+  void _logout() async {
+    await FirebaseAuth.instance.signOut(); // Logout dari Firebase
     Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => LoginPage()));
   }
 
@@ -129,13 +198,19 @@ class _HomeOwnerState extends State<HomeOwner> {
         title: Text("Dashboard Owner"),
         backgroundColor: Colors.blueGrey,
         actions: [
-          // --- TAMBAH INI: Tombol Ubah Password ---
           IconButton(
             icon: Icon(Icons.vpn_key),
             tooltip: "Ubah Password",
             onPressed: _ubahPassword,
           ),
-          // ----------------------------------------
+          IconButton(
+            icon: Icon(Icons.refresh), // Tombol tambahan untuk Owner
+            tooltip: "Refresh Data",
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Menyinkronkan data dari Cloud...")));
+              loadLaporan();
+            },
+          ),
           IconButton(icon: Icon(Icons.logout), onPressed: _logout)
         ],
       ),
