@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'database_helper.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // Tambahan untuk Auth
+import 'firebase_service.dart'; // MENGGUNAKAN FIREBASE
 import 'login.dart';
 
 class DashboardTokoOffline extends StatefulWidget {
@@ -20,10 +21,12 @@ class _DashboardTokoOfflineState extends State<DashboardTokoOffline> {
     loadStokToko();
   }
 
-  // Mengambil sisa stok khusus untuk Toko Offline (PBI-027)
+  // Mengambil sisa stok khusus untuk Toko Offline dari Cloud
   Future<void> loadStokToko() async {
-    int totalAlokasiOffline = await DatabaseHelper.instance.getTotalAlokasiByTujuan('Toko Offline');
-    int totalTerjual = await DatabaseHelper.instance.getTotalTerjualOffline();
+    // 1. Ambil jatah dari Manajer (Modul 3)
+    int totalAlokasiOffline = await FirebaseService.getTotalAlokasiByTujuan('Toko Offline');
+    // 2. Ambil total yang sudah laku terjual (Modul 4)
+    int totalTerjual = await FirebaseService.getTotalTerjualOffline();
     
     setState(() {
       // Rumus: Stok Tersedia = (Total Jatah Offline dari Manajer) - (Total Terjual)
@@ -55,7 +58,7 @@ class _DashboardTokoOfflineState extends State<DashboardTokoOffline> {
 
     int totalHarga = jumlahBeli * hargaPerButir;
 
-    // Munculkan Pop-up Konfirmasi Pembayaran & Cetak Nota (PBI-028)
+    // Munculkan Pop-up Konfirmasi Pembayaran & Cetak Nota
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -78,17 +81,24 @@ class _DashboardTokoOfflineState extends State<DashboardTokoOffline> {
           ),
           ElevatedButton(
             onPressed: () async {
-              String tglSekarang = DateTime.now().toString().split(' ')[0];
+              // Tampilkan loading
+              showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (context) => Center(child: CircularProgressIndicator()),
+              );
+
+              // Simpan ke database Firestore
+              await FirebaseService.insertTransaksiOffline(jumlahBeli, totalHarga);
               
-              // Simpan ke database
-              await DatabaseHelper.instance.insertTransaksiOffline(jumlahBeli, totalHarga, tglSekarang);
+              Navigator.pop(context); // Tutup loading
+              Navigator.pop(ctx); // Tutup dialog konfirmasi
               
-              Navigator.pop(ctx); // Tutup dialog
               jumlahController.clear();
               await loadStokToko(); // Refresh sisa stok
               
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text("Transaksi Berhasil! Nota tercetak.")),
+                SnackBar(content: Text("Transaksi Berhasil! Data tersimpan di Cloud.")),
               );
             },
             child: Text("Bayar & Selesai"),
@@ -98,7 +108,7 @@ class _DashboardTokoOfflineState extends State<DashboardTokoOffline> {
     );
   }
 
-  // --- FUNGSI BARU: UBAH PASSWORD ---
+  // --- FUNGSI BARU: UBAH PASSWORD FIREBASE ---
   void _ubahPassword() {
     final TextEditingController passwordBaruController = TextEditingController();
 
@@ -128,16 +138,25 @@ class _DashboardTokoOfflineState extends State<DashboardTokoOffline> {
                 return;
               }
 
-              // Asumsi email Kasir sesuai data bawaan di SQLite
-              String emailKasir = "kasir@admin.com"; 
-
-              await DatabaseHelper.instance.updatePassword(emailKasir, passwordBaruController.text);
-              
-              Navigator.pop(ctx);
-              
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text("Password berhasil diubah!"), backgroundColor: Colors.green),
-              );
+              try {
+                User? userSaatIni = FirebaseAuth.instance.currentUser;
+                
+                if (userSaatIni != null) {
+                  await userSaatIni.updatePassword(passwordBaruController.text);
+                  Navigator.pop(ctx);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text("Password berhasil diubah!"), backgroundColor: Colors.green),
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text("Gagal: Anda harus login ulang!"), backgroundColor: Colors.red),
+                  );
+                }
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                   SnackBar(content: Text("Error: Gagal mengubah password (Mungkin perlu re-login)"), backgroundColor: Colors.red),
+                );
+              }
             },
             child: Text("Simpan"),
           ),
@@ -146,7 +165,8 @@ class _DashboardTokoOfflineState extends State<DashboardTokoOffline> {
     );
   }
 
-  void _logout() {
+  void _logout() async {
+    await FirebaseAuth.instance.signOut(); // Logout dari Firebase
     Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => LoginPage()));
   }
 
@@ -157,13 +177,16 @@ class _DashboardTokoOfflineState extends State<DashboardTokoOffline> {
         automaticallyImplyLeading: false,
         title: Text("Kasir Toko Offline"),
         actions: [
-          // --- TAMBAH INI: Tombol Ubah Password ---
           IconButton(
             icon: Icon(Icons.vpn_key),
             tooltip: "Ubah Password",
             onPressed: _ubahPassword,
           ),
-          IconButton(icon: Icon(Icons.logout), onPressed: _logout)
+          IconButton(
+            icon: Icon(Icons.logout), 
+            onPressed: _logout,
+            tooltip: "Logout",
+          )
         ],
       ),
       body: Padding(
