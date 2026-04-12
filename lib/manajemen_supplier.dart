@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // 1. TAMBAH INI untuk fitur inputFormatters
-import 'database_helper.dart';
+import 'package:flutter/services.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // Tambahan Firestore
+import 'firebase_service.dart'; // MENGGUNAKAN FIREBASE
 
 class ManajemenSupplierPage extends StatefulWidget {
   @override
@@ -12,22 +13,6 @@ class _ManajemenSupplierPageState extends State<ManajemenSupplierPage> {
   final TextEditingController jumlahController = TextEditingController();
   final TextEditingController hargaController = TextEditingController();
 
-  List<Map<String, dynamic>> riwayatSupplier = [];
-
-  @override
-  void initState() {
-    super.initState();
-    loadData();
-  }
-
-  Future<void> loadData() async {
-    final data = await DatabaseHelper.instance.getSuppliers();
-    setState(() {
-      riwayatSupplier = data;
-    });
-  }
-
-  // 2. LOGIKA VALIDASI DIPERBAIKI DI SINI
   void simpanTransaksi() async {
     // Cek apakah ada form yang kosong
     if (namaController.text.isEmpty || jumlahController.text.isEmpty || hargaController.text.isEmpty) {
@@ -37,7 +22,7 @@ class _ManajemenSupplierPageState extends State<ManajemenSupplierPage> {
       return;
     }
 
-    // Coba ubah teks ke angka (kalau gagal/teks ngawur, hasilnya null)
+    // Coba ubah teks ke angka
     int? jumlah = int.tryParse(jumlahController.text);
     int? harga = int.tryParse(hargaController.text);
 
@@ -49,27 +34,34 @@ class _ManajemenSupplierPageState extends State<ManajemenSupplierPage> {
           backgroundColor: Colors.red,
         ),
       );
-      return; // Stop proses simpan di sini
+      return;
     }
 
-    int total = jumlah * harga; // Hitung otomatis total pengeluaran
-    String tgl = DateTime.now().toString().split(' ')[0];
+    int total = jumlah * harga; 
 
-    await DatabaseHelper.instance.insertSupplier(
+    // Tampilkan loading saat mengirim data ke internet
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => Center(child: CircularProgressIndicator()),
+    );
+
+    // Simpan ke Firestore
+    await FirebaseService.insertSupplier(
       namaController.text, 
       jumlah, 
       harga, 
-      total, 
-      tgl
+      total
     );
+
+    Navigator.pop(context); // Tutup loading
 
     namaController.clear();
     jumlahController.clear();
     hargaController.clear();
-    loadData();
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("Data pengadaan berhasil dicatat!"), backgroundColor: Colors.green)
+      SnackBar(content: Text("Data pengadaan berhasil dicatat di Cloud!"), backgroundColor: Colors.green)
     );
   }
 
@@ -84,17 +76,23 @@ class _ManajemenSupplierPageState extends State<ManajemenSupplierPage> {
             // --- FORM INPUT ---
             TextField(
               controller: namaController, 
-              decoration: InputDecoration(labelText: "Nama Peternak/Supplier")
+              decoration: InputDecoration(
+                labelText: "Nama Peternak/Supplier",
+                border: OutlineInputBorder(),
+              )
             ),
+            SizedBox(height: 10),
             Row(
               children: [
                 Expanded(
                   child: TextField(
                     controller: jumlahController, 
                     keyboardType: TextInputType.number, 
-                    // 3. PENGAMAN UI: Mencegah user mengetik minus (-) atau koma/titik sejak awal
                     inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    decoration: InputDecoration(labelText: "Jumlah (Butir)")
+                    decoration: InputDecoration(
+                      labelText: "Jumlah (Butir)",
+                      border: OutlineInputBorder(),
+                    )
                   )
                 ),
                 SizedBox(width: 10),
@@ -102,9 +100,11 @@ class _ManajemenSupplierPageState extends State<ManajemenSupplierPage> {
                   child: TextField(
                     controller: hargaController, 
                     keyboardType: TextInputType.number, 
-                    // 3. PENGAMAN UI JUGA
                     inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    decoration: InputDecoration(labelText: "Harga/Butir (Rp)")
+                    decoration: InputDecoration(
+                      labelText: "Harga/Butir (Rp)",
+                      border: OutlineInputBorder(),
+                    )
                   )
                 ),
               ],
@@ -112,25 +112,55 @@ class _ManajemenSupplierPageState extends State<ManajemenSupplierPage> {
             SizedBox(height: 15),
             ElevatedButton(
               onPressed: simpanTransaksi,
-              style: ElevatedButton.styleFrom(minimumSize: Size(double.infinity, 45)),
-              child: Text("Catat Pembelian"),
+              style: ElevatedButton.styleFrom(minimumSize: Size(double.infinity, 50)),
+              child: Text("Catat Pembelian", style: TextStyle(fontSize: 16)),
             ),
             
-            Divider(height: 40),
-            Align(alignment: Alignment.centerLeft, child: Text("Riwayat Pengadaan:", style: TextStyle(fontWeight: FontWeight.bold))),
+            SizedBox(height: 20),
+            Align(alignment: Alignment.centerLeft, child: Text("Riwayat Pengadaan (Real-time):", style: TextStyle(fontWeight: FontWeight.bold))),
+            SizedBox(height: 10),
             
-            // --- LIST RIWAYAT ---
+            // --- LIST RIWAYAT MENGGUNAKAN STREAM BUILDER ---
             Expanded(
-              child: ListView.builder(
-                itemCount: riwayatSupplier.length,
-                itemBuilder: (context, index) {
-                  var item = riwayatSupplier[index];
-                  return Card(
-                    child: ListTile(
-                      title: Text(item['nama_peternak']),
-                      subtitle: Text("${item['jumlah_telur']} butir @Rp${item['harga_per_butir']}"),
-                      trailing: Text("Rp${item['total_bayar']}", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
-                    ),
+              child: StreamBuilder<QuerySnapshot>(
+                stream: FirebaseService.streamSuppliers(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return Center(child: CircularProgressIndicator());
+                  }
+
+                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                    return Center(child: Text("Belum ada riwayat pengadaan."));
+                  }
+
+                  var docs = snapshot.data!.docs;
+
+                  return ListView.builder(
+                    itemCount: docs.length,
+                    itemBuilder: (context, index) {
+                      var data = docs[index].data() as Map<String, dynamic>;
+                      
+                      String waktu = "Memproses waktu...";
+                      if (data['timestamp'] != null) {
+                        Timestamp ts = data['timestamp'];
+                        // Ambil format tanggalnya saja YYYY-MM-DD
+                        waktu = ts.toDate().toString().split(' ')[0]; 
+                      }
+
+                      return Card(
+                        margin: EdgeInsets.only(bottom: 10),
+                        child: ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: Colors.green.shade100,
+                            child: Icon(Icons.local_shipping, color: Colors.green),
+                          ),
+                          title: Text(data['nama_peternak'] ?? '-', style: TextStyle(fontWeight: FontWeight.bold)),
+                          subtitle: Text("${data['jumlah_telur']} butir @Rp${data['harga_per_butir']}\nTanggal: $waktu"),
+                          trailing: Text("Rp${data['total_bayar']}", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red, fontSize: 16)),
+                          isThreeLine: true,
+                        ),
+                      );
+                    },
                   );
                 },
               ),

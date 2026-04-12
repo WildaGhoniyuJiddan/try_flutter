@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'database_helper.dart';
+import 'firebase_service.dart'; // MENGGUNAKAN FIREBASE
 
 class AlokasiStokPage extends StatefulWidget {
   @override
@@ -24,16 +24,17 @@ class _AlokasiStokPageState extends State<AlokasiStokPage> {
   }
 
   Future<void> loadDataAlokasi() async {
-    // 1. Ambil total telur asin yang BERHASIL diproduksi
-    int totalProduksiBerhasil = await DatabaseHelper.instance.getTotalProduksiBerhasil();
+    // 1. Ambil total telur asin yang BERHASIL diproduksi (Dari Modul 2)
+    int totalProduksiBerhasil = await FirebaseService.getTotalProduksiByStatus('Berhasil');
     
     // 2. Ambil total yang sudah dialokasikan sebelumnya
-    int totalSudahAlokasi = await DatabaseHelper.instance.getTotalSemuaAlokasi();
+    int totalSudahAlokasi = await FirebaseService.getTotalSemuaAlokasi();
     
     // 3. Ambil rincian masing-masing toko
-    int totalOffline = await DatabaseHelper.instance.getTotalAlokasiByTujuan('Toko Offline');
-    int totalOnline = await DatabaseHelper.instance.getTotalAlokasiByTujuan('Toko Online');
+    int totalOffline = await FirebaseService.getTotalAlokasiByTujuan('Toko Offline');
+    int totalOnline = await FirebaseService.getTotalAlokasiByTujuan('Toko Online');
 
+    if (!mounted) return;
     setState(() {
       // Rumus: Sisa yang bisa dibagikan = Total Jadi - Total yang sudah dibagi
       stokSiapAlokasi = totalProduksiBerhasil - totalSudahAlokasi;
@@ -68,17 +69,25 @@ class _AlokasiStokPageState extends State<AlokasiStokPage> {
       return;
     }
 
-    String tglSekarang = DateTime.now().toString().split(' ')[0];
+    // Tampilkan loading karena butuh waktu nyimpan ke internet
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => Center(child: CircularProgressIndicator()),
+    );
 
-    // Simpan ke database
-    await DatabaseHelper.instance.insertAlokasi(tujuanTerpilih!, jumlah, tglSekarang);
+    // Simpan ke database Firestore
+    await FirebaseService.insertAlokasi(tujuanTerpilih!, jumlah);
+
+    // Tutup dialog loading
+    Navigator.pop(context);
 
     jumlahController.clear();
     setState(() {
       tujuanTerpilih = null;
     });
 
-    await loadDataAlokasi(); // Refresh angka di layar
+    await loadDataAlokasi(); // Refresh angka di layar secara langsung
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text("$jumlah butir berhasil dialokasikan ke $tujuanTerpilih")),

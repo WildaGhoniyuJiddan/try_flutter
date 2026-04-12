@@ -1,130 +1,90 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // 1. TAMBAH INI untuk memblokir minus di keyboard
-import 'database_helper.dart';
-import 'login.dart'; // Pastikan meng-import login.dart untuk fitur logout
+import 'package:flutter/services.dart';
+import 'firebase_service.dart';
 
 class BahanBaku extends StatefulWidget {
   @override
-  _BahanBakuState createState() => _BahanBakuState();
+  _BahanBakuPageState createState() => _BahanBakuPageState();
 }
 
-class _BahanBakuState extends State<BahanBaku> {
+class _BahanBakuPageState extends State<BahanBaku> {
   final TextEditingController jumlahController = TextEditingController();
   
-  String? kondisiTerpilih;
-  final List<String> listKondisi = ['Lolos QC (Bagus)', 'Tidak Lolos (Rusak)'];
+  String? statusTerpilih;
+  final List<String> listStatus = ['Lolos QC', 'Gagal QC'];
 
-  List<Map<String, dynamic>> dataList = [];
-
+  int stokBelumQC = 0;
   int totalBagus = 0;
-  int totalRusak = 0;
-  
-  // 2. VARIABEL BARU UNTUK SINKRONISASI SUPPLIER
-  int totalBeli = 0;
-  int sisaBelumQC = 0;
+  int totalJelek = 0;
 
   @override
   void initState() {
     super.initState();
-    loadData();
+    loadDataGudang();
   }
 
-  @override
-  void dispose() {
-    jumlahController.dispose();
-    super.dispose();
+  // Fungsi untuk mengambil data dari Supplier dan hasil QC
+  Future<void> loadDataGudang() async {
+    int totalBeliSupplier = await FirebaseService.getTotalBeliDariSupplier();
+    int bagus = await FirebaseService.getTotalBahanBakuLolosQC();
+    int jelek = await FirebaseService.getTotalBahanBakuGagalQC();
+
+    setState(() {
+      totalBagus = bagus;
+      totalJelek = jelek;
+      // Rumus: Sisa yang belum disortir = Total Beli - (Yang Bagus + Yang Jelek)
+      stokBelumQC = totalBeliSupplier - (bagus + jelek);
+    });
   }
 
-  Future<void> simpanData() async {
+  void simpanData() async {
     String jumlahText = jumlahController.text;
 
-    if (jumlahText.isEmpty || kondisiTerpilih == null) {
+    if (jumlahText.isEmpty || statusTerpilih == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Semua field harus diisi"), backgroundColor: Colors.red),
+        SnackBar(content: Text("Jumlah dan Status QC harus diisi!"), backgroundColor: Colors.red),
       );
       return;
     }
 
-    // 3. PERBAIKAN BUG ANGKA MINUS & TEKS NGAWUR
     int? jumlah = int.tryParse(jumlahText);
 
     if (jumlah == null || jumlah <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Jumlah tidak valid! Masukkan angka lebih dari 0."), backgroundColor: Colors.red),
+        SnackBar(content: Text("Jumlah tidak valid! Harus lebih dari 0."), backgroundColor: Colors.red)
       );
       return;
     }
 
-    // 4. LOGIKA CERDAS: Cegah input melebihi sisa yang belum di QC
-    if (jumlah > sisaBelumQC) {
+    // Validasi Logika: Tidak bisa men-QC telur lebih banyak dari yang dibeli
+    if (jumlah > stokBelumQC) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("Gagal! Jumlah QC ($jumlah) melebihi sisa telur yang belum diperiksa ($sisaBelumQC)."), 
-          backgroundColor: Colors.red
-        ),
+        SnackBar(content: Text("Gagal: Anda hanya memiliki $stokBelumQC butir telur yang belum di-QC!"), backgroundColor: Colors.orange),
       );
       return;
     }
 
-    // Menyimpan data ke SQLite
-    await DatabaseHelper.instance.insertBahanBaku(jumlah, kondisiTerpilih!);
-    await loadData(); // Memperbarui daftar dan total card otomatis
+    // Tampilkan loading
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => Center(child: CircularProgressIndicator()),
+    );
+
+    // Simpan ke Firestore
+    await FirebaseService.insertBahanBaku(jumlah, statusTerpilih!);
+
+    Navigator.pop(context); // Tutup loading
 
     jumlahController.clear();
     setState(() {
-      kondisiTerpilih = null;
+      statusTerpilih = null;
     });
+
+    await loadDataGudang(); // Refresh indikator angka
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("Data penerimaan bahan baku berhasil disimpan"), backgroundColor: Colors.green),
-    );
-  }
-
-  Future<void> loadData() async {
-    // Ambil data histori penerimaan telur
-    final data = await DatabaseHelper.instance.getBahanBaku();
-
-    int totalMasukBagus = 0;
-    int tempRusak = 0;
-
-    // Hitung total telur kotor yang masuk
-    for (var item in data) {
-      int jml = item['jumlah'] as int;
-      String kualitas = item['kualitas'] as String;
-
-      if (kualitas == 'Lolos QC (Bagus)') {
-        totalMasukBagus += jml;
-      } else if (kualitas == 'Tidak Lolos (Rusak)') {
-        tempRusak += jml;
-      }
-    }
-
-    // Ambil data telur yang SUDAH DIPAKAI oleh Produsen
-    int dipakaiBerhasil = await DatabaseHelper.instance.getTotalProduksiBerhasil();
-    int dipakaiGagal = await DatabaseHelper.instance.getTotalProduksiGagal();
-    int totalDipakai = dipakaiBerhasil + dipakaiGagal;
-
-    // Hitung SISA REAL-TIME
-    int sisaBagus = totalMasukBagus - totalDipakai;
-
-    // 5. AMBIL DATA DARI SUPPLIER & HITUNG SISA BELUM QC
-    int beliTotal = await DatabaseHelper.instance.getTotalPembelian();
-    int totalSudahDiperiksa = totalMasukBagus + tempRusak; // Telur bagus + rusak adalah telur yang sudah melewati QC
-
-    setState(() {
-      dataList = data;
-      totalBagus = sisaBagus; 
-      totalRusak = tempRusak;
-      
-      totalBeli = beliTotal;
-      sisaBelumQC = totalBeli - totalSudahDiperiksa; // Rumus sisa antrean QC
-    });
-  }
-
-  void _logout() {
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (context) => LoginPage()),
+      SnackBar(content: Text("Data QC berhasil dicatat!"), backgroundColor: Colors.green),
     );
   }
 
@@ -132,77 +92,96 @@ class _BahanBakuState extends State<BahanBaku> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        // INI YANG MEMUNCULKAN TOMBOL BACK KE DASHBOARD
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pop(context),
+        ),
         title: Text("Bahan Baku & QC"),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.logout),
-            onPressed: _logout,
-            tooltip: "Logout",
-          )
-        ],
       ),
       body: Padding(
         padding: EdgeInsets.all(16),
         child: Column(
           children: [
-            // 6. CARD BARU: INFORMASI ANTREAN QC DARI SUPPLIER
-            Card(
-              color: Colors.amber.shade50,
-              elevation: 2,
-              child: ListTile(
-                leading: Icon(Icons.inventory, color: Colors.amber.shade900, size: 35),
-                title: Text("Telur Menunggu QC", style: TextStyle(fontWeight: FontWeight.bold)),
-                subtitle: Text("Total Pembelian dari Supplier: $totalBeli"),
-                trailing: Text(
-                  "$sisaBelumQC", 
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.amber.shade900)
+            // --- KOTAK INDIKATOR STOK ---
+            Row(
+              children: [
+                Expanded(
+                  child: Card(
+                    color: Colors.grey.shade200,
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(vertical: 16, horizontal: 4),
+                      child: Column(
+                        children: [
+                          Text("Belum QC", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                          SizedBox(height: 5),
+                          Text("$stokBelumQC", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black87)),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
-              ),
+                Expanded(
+                  child: Card(
+                    color: Colors.green.shade50,
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(vertical: 16, horizontal: 4),
+                      child: Column(
+                        children: [
+                          Text("Lolos (Bagus)", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                          SizedBox(height: 5),
+                          Text("$totalBagus", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.green)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Card(
+                    color: Colors.red.shade50,
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(vertical: 16, horizontal: 4),
+                      child: Column(
+                        children: [
+                          Text("Gagal (Jelek)", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                          SizedBox(height: 5),
+                          Text("$totalJelek", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.red)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            
+            SizedBox(height: 30),
+
+            // --- FORM INPUT QC ---
+            Align(
+              alignment: Alignment.centerLeft, 
+              child: Text("Form Sortir (QC) Telur:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16))
             ),
             SizedBox(height: 10),
 
-            // --- CARD TOTAL STOK BAHAN BAKU (Lolos QC) ---
-            Card(
-              color: Colors.green.shade50, // Ubah sedikit warnanya biar beda dengan card di atas
-              elevation: 3,
-              child: Padding(
-                padding: EdgeInsets.symmetric(vertical: 16, horizontal: 8),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    _buildGradeInfo("Stok Bagus", totalBagus, Colors.green),
-                    Container(height: 40, width: 1, color: Colors.grey), 
-                    _buildGradeInfo("Total Rusak", totalRusak, Colors.red),
-                    Container(height: 40, width: 1, color: Colors.grey),
-                    _buildGradeInfo("Total Diperiksa", totalBagus + totalRusak, Colors.blue[800]!),
-                  ],
-                ),
-              ),
-            ),
-            
-            SizedBox(height: 20),
-
-            // --- FORM INPUT PENERIMAAN & QC ---
             TextField(
               controller: jumlahController,
               keyboardType: TextInputType.number,
-              // 7. PENGAMAN KEYBOARD UI (Blokir minus dan titik)
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               decoration: InputDecoration(
-                labelText: "Jumlah Telur yang di-QC",
+                labelText: "Jumlah Telur Disortir",
                 border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.egg),
               ),
             ),
-
             SizedBox(height: 16),
-
+            
             DropdownButtonFormField<String>(
-              value: kondisiTerpilih,
+              value: statusTerpilih,
               decoration: InputDecoration(
-                labelText: "Kondisi / Quality Control",
+                labelText: "Hasil Sortir (Status QC)",
                 border: OutlineInputBorder(),
               ),
-              items: listKondisi.map((String val) {
+              items: listStatus.map((String val) {
                 return DropdownMenuItem<String>(
                   value: val,
                   child: Text(val),
@@ -210,69 +189,23 @@ class _BahanBakuState extends State<BahanBaku> {
               }).toList(),
               onChanged: (newValue) {
                 setState(() {
-                  kondisiTerpilih = newValue;
+                  statusTerpilih = newValue;
                 });
               },
             ),
-
+            
             SizedBox(height: 20),
-
+            
             ElevatedButton(
               onPressed: simpanData,
-              child: Text("Simpan Data QC"),
               style: ElevatedButton.styleFrom(
                 minimumSize: Size(double.infinity, 50),
               ),
-            ),
-
-            SizedBox(height: 20),
-            
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                "Riwayat Pemeriksaan (QC):",
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-              ),
-            ),
-            SizedBox(height: 10),
-
-            // --- LIST RIWAYAT ---
-            Expanded(
-              child: ListView.builder(
-                itemCount: dataList.length,
-                itemBuilder: (context, index) {
-                  bool isBagus = dataList[index]['kualitas'] == 'Lolos QC (Bagus)';
-                  
-                  return Card(
-                    child: ListTile(
-                      leading: Icon(
-                        isBagus ? Icons.check_circle : Icons.cancel, 
-                        color: isBagus ? Colors.green : Colors.red
-                      ),
-                      title: Text("Jumlah: ${dataList[index]['jumlah']} butir"),
-                      subtitle: Text("Status: ${dataList[index]['kualitas']}"),
-                    ),
-                  );
-                },
-              ),
+              child: Text("Simpan Hasil QC", style: TextStyle(fontSize: 16)),
             ),
           ],
         ),
       ),
-    );
-  }
-
-  // Widget Helper untuk UI Card
-  Widget _buildGradeInfo(String label, int total, Color valueColor) {
-    return Column(
-      children: [
-        Text(label, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-        SizedBox(height: 8),
-        Text(
-          "$total", 
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24, color: valueColor)
-        ),
-      ],
     );
   }
 }

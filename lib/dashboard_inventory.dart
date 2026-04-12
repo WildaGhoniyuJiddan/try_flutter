@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // TAMBAHAN: Untuk fungsi Logout Cloud
 import 'login.dart';
 import 'bahan_baku.dart';
 import 'kelola_akun.dart';
@@ -7,8 +8,12 @@ import 'manajemen_supplier.dart';
 
 class DashboardInventory extends StatelessWidget {
   
-  // Fungsi Logout
-  void _logout(BuildContext context) {
+  // Fungsi Logout yang sudah terhubung ke Cloud
+  void _logout(BuildContext context) async {
+    // Tutup sesi di Firebase Auth
+    await FirebaseAuth.instance.signOut(); 
+    
+    // Pindah ke layar Login
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(builder: (context) => LoginPage()),
@@ -63,7 +68,8 @@ class DashboardInventory extends StatelessWidget {
                     title: "Bahan Baku & QC",
                     icon: Icons.egg,
                     color: Colors.orange,
-                    destination: BahanBaku(), // Mengarah ke form telurmu
+                    // UPDATE: Menyesuaikan nama class yang sudah kita ganti sebelumnya
+                    destination: BahanBaku(), 
                   ),
                   _buildMenuCard(
                     context,
