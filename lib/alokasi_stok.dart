@@ -24,22 +24,28 @@ class _AlokasiStokPageState extends State<AlokasiStokPage> {
   }
 
   Future<void> loadDataAlokasi() async {
-    // 1. Ambil total telur asin yang BERHASIL diproduksi (Dari Modul 2)
+    // 1. Ambil total telur asin yang BERHASIL diproduksi
     int totalProduksiBerhasil = await FirebaseService.getTotalProduksiByStatus('Berhasil');
     
-    // 2. Ambil total yang sudah dialokasikan sebelumnya
+    // 2. Ambil total yang sudah dialokasikan dari gudang utama
     int totalSudahAlokasi = await FirebaseService.getTotalSemuaAlokasi();
     
-    // 3. Ambil rincian masing-masing toko
-    int totalOffline = await FirebaseService.getTotalAlokasiByTujuan('Toko Offline');
-    int totalOnline = await FirebaseService.getTotalAlokasiByTujuan('Toko Online');
+    // 3. Ambil jatah (modal) masing-masing toko
+    int totalAlokasiOffline = await FirebaseService.getTotalAlokasiByTujuan('Toko Offline');
+    int totalAlokasiOnline = await FirebaseService.getTotalAlokasiByTujuan('Toko Online');
+
+    // 4. Ambil data telur yang SUDAH LAKU TERJUAL di kedua platform
+    int totalTerjualOffline = await FirebaseService.getTotalTerjualOffline();
+    int totalTerjualOnline = await FirebaseService.getTotalTerjualOnline(); // <-- INI DIA KUNCINYA
 
     if (!mounted) return;
     setState(() {
-      // Rumus: Sisa yang bisa dibagikan = Total Jadi - Total yang sudah dibagi
+      // Rumus Gudang: Sisa yang bisa dibagikan = Total Jadi - Total yang sudah dibagi
       stokSiapAlokasi = totalProduksiBerhasil - totalSudahAlokasi;
-      stokOffline = totalOffline;
-      stokOnline = totalOnline;
+      
+      // RUMUS BARU ETALASE: Sisa Stok = Total Jatah - Total Terjual
+      stokOffline = totalAlokasiOffline - totalTerjualOffline;
+      stokOnline = totalAlokasiOnline - totalTerjualOnline; // <-- SEKARANG ONLINE JUGA REAL-TIME
     });
   }
 
